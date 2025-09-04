@@ -7,7 +7,7 @@ type Option = {
   label: string;
   slug: string;
   screen: string;
-  image: any; // image import or require
+  image?: any; // image import or require
 };
 
 type Props = {
@@ -41,7 +41,7 @@ export default function SingleSelectSection({ title, icon, options, selected, on
             onPress={() => handleSelect(opt)}
           >
             <View style={styles.optionLeft}>
-              <Image source={opt.image} style={styles.image} />
+              { opt.image && <Image source={opt.image} style={styles.image} /> }
               <Text style={styles.label}>{opt.label}</Text>
             </View>
           </TouchableOpacity>

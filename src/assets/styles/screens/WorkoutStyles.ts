@@ -28,7 +28,8 @@ export default StyleSheet.create({
   },
   planBlock: {
     width: '100%',
-    marginBottom: 20
+    marginBottom: 20,
+    alignSelf: 'flex-start'
   },
   workoutImage: {
     width: 60,

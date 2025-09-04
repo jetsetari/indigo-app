@@ -1,9 +1,38 @@
+import useTranslation from '~/data/helpers/translation';
+const t = useTranslation().register;
+
+
+export const genderOptions = [
+  { label: t.gender.male,   value: 'male' },
+  { label: t.gender.female, value: 'female' },
+  { label: t.gender.other,  value: 'other' },
+];
+
+
+
 export const languagesData = [
   { label: 'English', value: 'en' },
   { label: 'Dutch', value: 'nl' },
   { label: 'French', value: 'fr' },
 ];
 
+
+export const eatingOptions = [
+  { label: 'Balanced Diet', description: 'Omnivore', icon: '🍽️', value: 'balanced' },
+  { label: 'Vegetarian', description: 'No meat, but eats animal products', icon: '🥚', value: 'vegetarian' },
+  { label: 'Keto', description: 'High fat, low carb', icon: '🌿', value: 'keto' },
+  { label: 'Plant Based', description: 'No animal products consumed', icon: '🌾', value: 'plant-based' },
+  { label: 'Pescatarian', description: 'Only fish and some animal products', icon: '🐟', value: 'pescatarian' },
+  { label: 'Paleo Diet', description: 'High protein & fat, Low gluten & processed foods', icon: '🔥', value: 'paleo' },
+];
+
+export const mealOptions = [
+  { label: '1 Meal', value: '1' },
+  { label: '2 Meals', value: '2' },
+  { label: '3 Meals', value: '3' },
+  { label: '4 Meals', value: '4' },
+  { label: '5+ Meals', value: '5' },
+];
 
 export const sportTrainingOptions = [
   { label: "Bodybuilding Contest", slug: "bodybuilding-contest" },

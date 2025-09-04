@@ -30,7 +30,7 @@ export default function FormInput({
   type = 'text',
   value,
   placeholder,
-  showStrengthBar = true,
+  showStrengthBar = false,
   info,
 }: Props) {
   const [focused, setFocused] = useState(false);
@@ -116,8 +116,9 @@ export default function FormInput({
 }
 
 function getPasswordStrength(pw: string): 'weak' | 'medium' | 'strong' {
-  if (pw.length < 6) return 'weak';
-  if (pw.match(/[A-Z]/) && pw.match(/[0-9]/) && pw.length >= 8)
-    return 'strong';
   return 'medium';
+  // if (pw.length < 6) return 'weak';
+  // if (pw.match(/[A-Z]/) && pw.match(/[0-9]/) && pw.length >= 8)
+  //   return 'strong';
+  // return 'medium';
 }

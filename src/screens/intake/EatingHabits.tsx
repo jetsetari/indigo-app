@@ -1,78 +1,73 @@
-import React, { useState } from 'react';
-import { View } from 'react-native';
+import React, { useCallback, useState } from 'react';
 import { useNavigation } from '@react-navigation/native';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 
 import CustomButton from '~/components/Buttons/CustomButton';
-import IconButton from '~/components/Buttons/IconButton';
 import StickyHeader from '~/components/Layout/StickyHeader';
-import HeaderText from '~/components/Layout/HeaderText';
-import HeaderImage from '~/components/Layout/HeaderImage';
-import FormDropdown from '~/components/Form/Dropdown';
-import FormInput from '~/components/Form/Input';
-import SingleSelectGrid from '~/components/Form/SingleSelectGrid';
+import RHFDropdown from '~/components/Form/Dropdown/RHF';
+import RHFInput from '~/components/Form/Input/RHF';
+import RHFSingleSelectGrid from '~/components/Form/SingleSelectGrid/RHF';
+import HeaderWithExtra from '~/components/Layout/HeaderWithExtra';
+import Loading from '~/components/Loading';
+import { useUserStore } from '~/data/store/userStore';
+
+import { eatingOptions, mealOptions } from '~/data/content/options'; // hard-coded lists
+import defaultValues from '~/data/forms/habbits/defaultValues';
+import { eatingHabitsSchema, type EatingHabitsInput } from '~/data/forms/habbits/validation';
+import { buildSubmit, handleInvalid } from '~/data/forms/habbits/submit';
 
 import __base from '~/assets/styles/base';
 
-const eatingOptions = [
-  { label: 'Balanced Diet', description: 'Omnivore', icon: '🍽️', value: 'balanced' },
-  { label: 'Vegetarian', description: 'No meat, but eats animal products', icon: '🥚', value: 'vegetarian' },
-  { label: 'Keto', description: 'High fat, low carb', icon: '🌿', value: 'keto' },
-  { label: 'Plant Based', description: 'No animal products consumed', icon: '🌾', value: 'plant-based' },
-  { label: 'Pescatarian', description: 'Only fish and some animal products', icon: '🐟', value: 'pescatarian' },
-  { label: 'Paleo Diet', description: 'High protein & fat, Low gluten & processed foods', icon: '🔥', value: 'paleo' },
-];
-
-const mealOptions = [
-  { label: '1 Meal', value: '1' },
-  { label: '2 Meals', value: '2' },
-  { label: '3 Meals', value: '3' },
-  { label: '4 Meals', value: '4' },
-  { label: '5+ Meals', value: '5' },
-];
-
 export default function EatingHabits() {
   const navigation = useNavigation<any>();
+  const client = useUserStore((s) => s.client);
+  const avatarUrl = client?.avatar_url ?? undefined;
 
-  const [selectedStyle, setSelectedStyle] = useState<string>('balanced');
-  const [mealCount, setMealCount] = useState<string>('2');
-  const [kcal, setKcal] = useState<string>('');
+  const { control, handleSubmit } = useForm<EatingHabitsInput>({
+    resolver: zodResolver(eatingHabitsSchema),
+    defaultValues,
+    mode: 'onSubmit',
+  });
+
+  const [saving, setSaving] = useState(false);
+
+  const onValid = useCallback(
+    buildSubmit({
+      client_id: client!.id,
+      onDone: () => navigation.navigate('Supplements'),
+    }),
+    [client?.id, navigation]
+  );
+  const onInvalid = useCallback(handleInvalid, []);
+
+  if (saving) return <Loading />;
 
   return (
     <StickyHeader title="Eating Habits">
-      <View style={__base.headerWithExtra}>
-        <View>
-          <IconButton route="Level" />
-          <HeaderText title="Eating Habits" subtitle="Tell us about your nutrition" />
-        </View>
-        <HeaderImage image="example" />
-      </View>
+      <HeaderWithExtra back="Level" title="Eating Habits" subtitle="Tell us about your nutrition" image={avatarUrl} />
 
-      <SingleSelectGrid
-        options={eatingOptions}
-        selected={selectedStyle}
-        onChange={setSelectedStyle}
-      />
+      {/* Eating style (slug) */}
+      <RHFSingleSelectGrid control={control} name="eating_habits" options={eatingOptions} />
 
-      <FormDropdown
-        label="How often do you eat in a day?"
-        value={mealCount}
-        onChange={setMealCount}
-        options={mealOptions}
-      />
+      {/* Meals per day (number) */}
+      <RHFDropdown control={control} name="meals_per_day" label="How often do you eat in a day?" options={mealOptions} parseAsNumber />
 
-      <FormInput
-        label="If you know your daily kcal intake?"
-        placeholder="Leave blank if you don’t know"
-        type="number"
-        value={kcal}
-        onChange={setKcal}
-      />
+      {/* Daily kcal intake (number, optional) */}
+      <RHFInput control={control} name="daily_kcal_intake" label="If you know your daily kcal intake?" placeholder="Leave blank if you don’t know" type="number" />
 
       <CustomButton
         title="Next"
         backgroundColor="#000"
         textColor="#FFF"
-        onPress={() => navigation.navigate('Supplements')}
+        onPress={handleSubmit(async (vals) => {
+          try {
+            setSaving(true);
+            await onValid(vals as any);
+          } finally {
+            setSaving(false);
+          }
+        }, onInvalid)}
       />
     </StickyHeader>
   );

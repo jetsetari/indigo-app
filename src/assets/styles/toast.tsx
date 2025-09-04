@@ -1,40 +1,64 @@
-// ~/data/theme/toastConfig.ts
 import React from 'react';
-import { BaseToast, ErrorToast } from 'react-native-toast-message';
-import type { ToastConfig } from 'react-native-toast-message';
+import { useColorScheme } from 'react-native';
+import Toast, { BaseToast, ErrorToast, type ToastConfig } from 'react-native-toast-message';
 
-export const toastConfig: ToastConfig = {
-  success: (props) => (
+const palette = {
+  dark: {
+    card: '#FFF',
+    text: '#000',
+    sub: '#333',
+    border: '#2A2A2A',
+    success: '#22C55E',
+    error: '#EF4444',
+    info: '#60A5FA',
+  },
+};
+
+const useColors = () => palette['dark'];
+
+const ThemedSuccess = (props: any) => {
+  const c = useColors();
+  return (
     <BaseToast
       {...props}
-      style={{ borderLeftColor: '#4CAF50', marginTop: 20 }}
-      contentContainerStyle={{ paddingHorizontal: 15 }}
-      text1Style={{
-        fontSize: 18,
-        fontWeight: 'bold',
-        marginBottom: 5,
-        marginTop: 2
-      }}
-      text2Style={{
-        fontSize: 18,
-      }}
+      style={{ borderLeftColor: c.success, backgroundColor: c.card, borderRadius: 0, marginTop: 20, borderColor: c.border }}
+      contentContainerStyle={{ paddingHorizontal: 14 }}
+      text1Style={{ color: c.text, fontSize: 16, fontWeight: '700' }}
+      text2Style={{ color: c.sub, fontSize: 14, marginTop: 2 }}
     />
-  ),
+  );
+};
 
-  error: (props) => (
+const ThemedError = (props: any) => {
+  const c = useColors();
+  return (
     <ErrorToast
       {...props}
-      style={{ borderLeftColor: '#F44336', marginTop: 20 }}
-      contentContainerStyle={{ paddingHorizontal: 15 }}
-      text1Style={{
-        fontSize: 18,
-        fontWeight: 'bold',
-        marginBottom: 5,
-        marginTop: 2
-      }}
-      text2Style={{
-        fontSize: 18,
-      }}
+      style={{ borderLeftColor: c.error, backgroundColor: c.card, borderRadius: 0, marginTop: 20, borderColor: c.border }}
+      contentContainerStyle={{ paddingHorizontal: 14 }}
+      text1Style={{ color: c.text, fontSize: 16, fontWeight: '700' }}
+      text2Style={{ color: c.sub, fontSize: 14, marginTop: 2 }}
     />
-  ),
+  );
 };
+
+const ThemedInfo = (props: any) => {
+  const c = useColors();
+  return (
+    <BaseToast
+      {...props}
+      style={{ borderLeftColor: c.info, backgroundColor: c.card, borderRadius: 0, marginTop: 20, borderColor: c.border }}
+      contentContainerStyle={{ paddingHorizontal: 14 }}
+      text1Style={{ color: c.text, fontSize: 16, fontWeight: '700' }}
+      text2Style={{ color: c.sub, fontSize: 14, marginTop: 2 }}
+    />
+  );
+};
+
+const toastConfig: ToastConfig = {
+  success: (p) => <ThemedSuccess {...p} />,
+  error:   (p) => <ThemedError {...p} />,
+  info:    (p) => <ThemedInfo {...p} />,
+};
+
+export default toastConfig;

@@ -22,13 +22,13 @@ export default function PaymentScreen() {
 
   return (
     <StickyHeader title="Payment">
-      <View style={__base.headerWithExtra}>
+      {/*<View style={__base.headerWithExtra}>
         <View>
           <IconButton route="Supplements" />
           <HeaderText title="Payment Options" subtitle="Choose your tier" />
         </View>
         <HeaderImage image="example" />
-      </View>
+      </View>*/}
 
       <Toggle
         options={['Monthly', 'Yearly']}

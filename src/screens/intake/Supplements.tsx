@@ -1,46 +1,71 @@
-import React, { useState } from 'react';
-import { View } from 'react-native';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigation } from '@react-navigation/native';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 
-import CustomButton from '~/components/Buttons/CustomButton';
-import IconButton from '~/components/Buttons/IconButton';
 import StickyHeader from '~/components/Layout/StickyHeader';
-import HeaderText from '~/components/Layout/HeaderText';
-import HeaderImage from '~/components/Layout/HeaderImage';
-import MultiSelectSection from '~/components/Form/MultiSelectSection';
+import HeaderWithExtra from '~/components/Layout/HeaderWithExtra';
+import RHFMultiSelectSection from '~/components/Form/MultiSelectSection/RHF';
+import CustomButton from '~/components/Buttons/CustomButton';
+import Loading from '~/components/Loading';
 
+import { useUserStore } from '~/data/store/userStore';
+import { getSupplementOptions, type GoalOption } from '~/data/supabase/optionsDataHandler';
+import defaultValues from '~/data/forms/supplements/defaultValues';
+import { supplementsSchema, type SupplementsInput } from '~/data/forms/supplements/validation';
+import { buildSubmit, handleInvalid } from '~/data/forms/supplements/submit';
 
-import { supplementOptions } from '~/data/content/options';
-
-
-
-import __base from '~/assets/styles/base';
-
-export default function Level() {
+export default function Supplements() {
   const navigation = useNavigation<any>();
+  const client = useUserStore((s) => s.client);
 
-  const [supplements, setSupplements] = useState<string[]>([]);
+  const { control, handleSubmit } = useForm<SupplementsInput>({
+    resolver: zodResolver(supplementsSchema),
+    defaultValues,
+    mode: 'onSubmit',
+  });
+
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [options, setOptions] = useState<GoalOption[]>([]);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      setLoading(true);
+      const list = await getSupplementOptions();
+      if (!alive) return;
+      setOptions(list);
+      setLoading(false);
+    })();
+    return () => { alive = false; };
+  }, []);
+
+  const onValid = useCallback(
+    buildSubmit({
+      client_id: client!.id,
+      onDone: () => navigation.navigate('Home'), // or your next screen
+    }),
+    [client?.id, navigation]
+  );
+  const onInvalid = useCallback(handleInvalid, []);
+
+  if (loading || saving) return <Loading />;
 
   return (
     <StickyHeader title="Supplements">
-      <View style={__base.headerWithExtra}>
-        <View>
-          <IconButton route="EatingHabits" />
-          <HeaderText title={'Supplements'} subtitle="List of supplements" />
-        </View>
-        <HeaderImage image="example" />
-      </View>
-      <MultiSelectSection
-        title="Do you take any supplements?"
-        options={supplementOptions}
-        selected={supplements}
-        onChange={setSupplements}
+      <HeaderWithExtra back="EatingHabits" title="Supplements" subtitle="Select the ones you take" image={client?.avatar_url ?? undefined}
       />
-      <CustomButton
-        title="Next"
-        backgroundColor="#000"
-        textColor="#FFF"
-        onPress={() => navigation.navigate('Payment')}
+      <RHFMultiSelectSection control={control} name="supplement_slugs" title="I take these supplements" options={options} />
+      <CustomButton title="Next" backgroundColor="#000" textColor="#FFF"
+        onPress={handleSubmit(async (vals) => {
+          try {
+            setSaving(true);
+            await onValid(vals as any);
+          } finally {
+            setSaving(false);
+          }
+        }, onInvalid)}
       />
     </StickyHeader>
   );

@@ -14,7 +14,7 @@ function Loading() {
         autoPlay
         loop
         style={styles.spinner}
-        source={require('./lottie/loader.json')}
+        source={require('./lottie/indigo.json')}
       />
     </View>
   );

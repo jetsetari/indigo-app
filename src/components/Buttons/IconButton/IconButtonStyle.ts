@@ -8,8 +8,8 @@ export const styles = StyleSheet.create({
     zIndex: 5000
   },
   square: {
-    width: 40,
-    height: 40,
+    width: 30,
+    height: 30,
     borderRadius: 0,
     justifyContent: 'center',
     alignItems: 'center',

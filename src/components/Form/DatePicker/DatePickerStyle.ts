@@ -2,14 +2,14 @@ import { StyleSheet, Platform } from 'react-native';
 
 export const styles = StyleSheet.create({
   label: {
-    fontFamily: 'Inter-Light', fontSize: 14, color: '#FFF', 
+    fontFamily: 'Inter-Light', fontSize: 13, color: '#FFF', 
     marginBottom: 5,
   },
   input: {
     backgroundColor: '#000',
     borderRadius: 0,
     paddingVertical: 12,
-    paddingHorizontal: 15,
+    paddingHorizontal: 10,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
@@ -18,7 +18,7 @@ export const styles = StyleSheet.create({
   },
   dateText: {
     fontFamily: 'Inter-Regular',
-    fontSize: 16,
+    fontSize: 14,
     color: '#FFF',
   },
   modalOverlay: {
@@ -38,7 +38,7 @@ export const styles = StyleSheet.create({
   },
   modalCloseText: {
     fontFamily: 'Inter-SemiBold',
-    fontSize: 16,
+    fontSize: 14,
     color: '#000',
   },
   picker: {

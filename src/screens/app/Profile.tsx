@@ -9,22 +9,23 @@ import CustomIcon from '~/components/Layout/CustomIcon';
 import { styles } from '~/assets/styles/screens/StartStyles';
 import { Badge } from '~/components/Layout/Badge';
 import SettingsButton from '~/components/Buttons/SettingsButton';
+import { useUserStore } from '~/data/store/userStore';
+import HeaderWithExtra from '~/components/Layout/HeaderWithExtra';
 
 export default function Stats() {
   const navigation = useNavigation<any>();
+  const client = useUserStore(s => s.client);
+  const displayName = client?.first_name ?? '';
+  const avatarUrl = client?.avatar_url ?? undefined;
 
   return (
     <>
       <StickyHeader title="Home" noSticky={true}>
-        {/* Header */}
-        <View style={__base.headerWithExtra}>
-          <View>
-            <HeaderText title={'Seth Gottesdiener'} subtitle="Member since May 2025" />
-          </View>
-        </View>
+        <HeaderWithExtra title={client?.first_name+' '+client?.last_name} subtitle="Member since August 2025" image={avatarUrl} />
+
 
         {/* Achievements */}
-        <View style={styles.section}>
+        {/*<View style={styles.section}>
           <View style={styles.rowBetween}>
             <Text style={[__base.textBold]}>Latest Achievements</Text>
             <TouchableOpacity><Text style={__base.link}>See All</Text></TouchableOpacity>
@@ -52,7 +53,7 @@ export default function Stats() {
               <Text style={__base.infoBoxLabel}>Level 1</Text>
             </View>
           </View>
-        </View>
+        </View>*/}
          {/* General Settings */}
         <View style={styles.section}>
           <Text style={[__base.textBold, { marginBottom: 10 }]}>General Settings</Text>

@@ -3,14 +3,15 @@ const { width, height } = Dimensions.get('window');
 
 export const styles = StyleSheet.create({
   headerText: {
-    flex: 1, paddingRight: 20, width: '100%', marginTop: 20
+    flexShrink: 1, marginRight: 10,
+    minWidth: 0, marginBottom: 30
   },
   subline : {
-    fontFamily: 'Inter-Light', fontSize: 18,
+    fontFamily: 'Inter-Light', fontSize: 16,
     color: '#FFF', marginBottom: 0, width: '100%'
   },
   h1 : {
-    fontFamily: 'Inter-SemiBold', fontSize: 26,
+    fontFamily: 'Inter-SemiBold', fontSize: 20,
     color: '#FFF'
-  },
+  }
 });

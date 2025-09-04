@@ -2,7 +2,7 @@ import { StyleSheet } from 'react-native';
 
 export const styles = StyleSheet.create({
   button: {
-    height: 50,
+    height: 45,
     width: '100%',
     borderRadius: 0,
     justifyContent: 'center',
@@ -14,7 +14,7 @@ export const styles = StyleSheet.create({
   },
   text: {
     fontFamily: 'Inter-Bold',
-    fontSize: 16,
+    fontSize: 14,
     color: '#fff',
     textAlign: 'center',
   },
