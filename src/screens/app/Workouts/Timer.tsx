@@ -2,9 +2,10 @@
 
 import React, { useState, useRef } from 'react';
 import { View, StyleSheet, Alert } from 'react-native';
-import { Video, ResizeMode } from 'expo-av';
 import IconButton from '~/components/Buttons/IconButton';
 import __base from '~/assets/styles/base';
+
+import BgVideo from '~/components/Layout/BgVideo';
 
 import TimerBar from '~/components/Layout/Blocks/TimerBar';
 import CustomButton from '~/components/Buttons/CustomButton';
@@ -15,32 +16,27 @@ export default function Timer({
   onBack: () => void;
 }) {
   const [running, setRunning] = useState(true);
-  const videoRef = useRef<Video>(null);
+  //const videoRef = useRef<Video>(null);
 
   const handleToggle = () => {
     setRunning(prev => !prev);
   };
 
   const handleDone = () => {
-    Alert.alert('done');
+    onBack();
     setRunning(false);
   };
 
   return (
     <View style={__base.container}>
-      <Video
-        ref={videoRef}
+      <BgVideo
         source={require('~/assets/videos/exercise-1.mp4')}
-        style={[StyleSheet.absoluteFill, { opacity: 0.5 }]}
-        shouldPlay={running}
-        isLooping
-        resizeMode={ResizeMode.COVER}
-        isMuted={false}
+        overlayStyle={{ backgroundColor: 'rgba(0,0,0,0.7)' }}
       />
 
-      <View style={__base.headerWithExtra}>
+      {/*<View style={__base.headerWithExtra}>
         <IconButton onPress={onBack} route="Workouts" icon="chevron-back" />
-      </View>
+      </View>*/}
 
       <TimerBar maxTime={10} paused={!running} onDone={handleDone} />
 

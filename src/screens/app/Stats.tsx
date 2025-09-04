@@ -14,11 +14,11 @@ export default function Stats() {
     <>
       <StickyHeader title="Home" noSticky={true}>
         {/* Header */}
-        <View style={__base.headerWithExtra}>
+        {/*<View style={__base.headerWithExtra}>
           <View>
             <HeaderText title={'From body stats to daily wins'} subtitle="Your Progress, Clearly Tracked" />
           </View>
-        </View>
+        </View>*/}
 
         {/* Stats */}
         <View style={__base.infoBox}>

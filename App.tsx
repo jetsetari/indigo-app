@@ -1,14 +1,28 @@
-import React, { useState } from 'react';
+import { useEffect } from 'react';
+import { setAudioModeAsync } from 'expo-audio';
+
 import { View } from 'react-native';
 import { useFonts } from 'expo-font';
 import Toast from 'react-native-toast-message';
 
 import Routes from '~/data/routes';
 import Loading from '~/components/Loading';
-import { toastConfig } from '~/assets/styles/toast';
+import toastConfig from '~/assets/styles/toast';
 import __base from '~/assets/styles/base';
 
 export default function App() {
+
+  useEffect(() => {
+    (async () => {
+      try {
+        await setAudioModeAsync({
+          allowsRecording: false,
+          playsInSilentMode: true,
+        });
+      } catch {}
+    })();
+  }, []);
+
   // Load Inter fonts
   const [fontsLoaded] = useFonts({
     'Inter-Bold': require('~/assets/fonts/Inter-Bold.ttf'),

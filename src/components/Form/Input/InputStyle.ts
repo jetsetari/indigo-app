@@ -3,19 +3,19 @@ import { StyleSheet } from 'react-native';
 export const styles = StyleSheet.create({
   input: {
     flexDirection: 'row', alignItems: 'center', backgroundColor: 'transparent', 
-    paddingHorizontal: 15, borderRadius: 0, height: 50, width: '100%', 
+    paddingHorizontal: 10, borderRadius: 0, height: 45, width: '100%', 
     borderWidth: 1, borderColor: '#FFF', marginBottom: 5
   },
   inputFocused: {
     borderWidth: 2,
   },
   label: {
-    fontFamily: 'Inter-Light', fontSize: 14, color: '#FFF', 
+    fontFamily: 'Inter-SemiBold', fontSize: 13, color: '#FFF', 
     marginBottom: 5,
   },
   inputField: {
-    flex: 1, fontFamily: 'Inter-Light', fontSize: 16, 
-    color: '#FFF', height: 50,
+    flex: 1, fontFamily: 'Inter-Light', fontSize: 14, 
+    color: '#FFF', height: 45, width: '100%',
   },
   icon: {
     marginLeft: 10,

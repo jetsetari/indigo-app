@@ -2,9 +2,9 @@ import { StyleSheet, Platform } from 'react-native';
 
 export const styles = StyleSheet.create({
   input: {
-    fontFamily: 'Inter-Light', fontSize: 16,
+    fontFamily: 'Inter-Light', fontSize: 14,
     color: '#222', backgroundColor: 'transparent', 
-    paddingHorizontal: 15, borderRadius: 0, height: 50, width: '100%', 
+    paddingHorizontal: 10, borderRadius: 0, height: 45, width: '100%', 
     borderWidth: 1, borderColor: '#FFF', marginBottom: 5
   },
   selectWrapper: {
@@ -21,14 +21,14 @@ export const styles = StyleSheet.create({
   },
   selectText: {
     fontFamily: 'Inter-Regular',
-    fontSize: 16,
+    fontSize: 14,
     paddingVertical: Platform.OS === 'ios' ? 0 : 8,
     color: '#FFF',
-    height: 50,
+    height: 45,
     alignItems: 'center'
   },
   icon: {
-    top: Platform.OS === 'ios' ? 15 : 13,
+    top: Platform.OS === 'ios' ? 12 : 10,
     right: 0,
   },
   label : {

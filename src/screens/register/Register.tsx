@@ -1,46 +1,63 @@
-import React, { useState } from 'react';
+// src/screens/register/Register.tsx
+import React, { useMemo } from 'react';
 import { View, Text } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 
-import CustomButton from '~/components/Buttons/CustomButton';
-import IconButton from '~/components/Buttons/IconButton';
-import FormInput from '~/components/Form/Input';
 import StickyHeader from '~/components/Layout/StickyHeader';
-import HeaderText from '~/components/Layout/HeaderText';
-import HeaderImage from '~/components/Layout/HeaderImage';
-import FormDatePicker from '~/components/Form/DatePicker';
-import Checkbox from '~/components/Form/Checkbox';
+import HeaderWithExtra from '~/components/Layout/HeaderWithExtra';
+import CustomButton from '~/components/Buttons/CustomButton';
+import { RHFImageUpload, RHFInput, RHFDatePicker, RHFCheckbox, RHFDropdown } from '~/components/Form';
+
+import defaultValues from '~/data/forms/register/defaultValues';
+import useTranslation from '~/data/helpers/translation';
+import { registrationSchema, type RegistrationForm } from '~/data/forms/register/validation';
+import { buildSubmit, handleInvalid } from '~/data/forms/register/submit';
+import { genderOptions } from '~/data/content/options';
 
 import __base from '~/assets/styles/base';
 
 export default function Register() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [dob, setDob] = useState<Date | null>(null);
-  const [agreed, setAgreed] = useState(false);
   const navigation = useNavigation<any>();
+  const t = useTranslation().register;
+
+  const { control, handleSubmit, formState: { isSubmitting } } =
+  useForm<RegistrationForm, any, RegistrationForm>({
+    resolver: zodResolver<RegistrationForm, any, RegistrationForm>(registrationSchema),
+    defaultValues,
+    mode: 'onSubmit',
+  });
+
+  const canSubmit = useMemo(() => !isSubmitting, [isSubmitting]);
+
+  const onSubmit = handleSubmit(
+    buildSubmit({ navigation, t, language: 'en', onSuccessNavigateTo: 'Metrics' }),
+    handleInvalid(t)
+  );
 
   return (
-    <StickyHeader title="Register">
-      <View style={__base.headerWithExtra}>
-        <View>
-          <IconButton route="Start" />
-          <HeaderText title={'Tell us about yourself'} subtitle="Let’s kick things off" />
-        </View>
-        <HeaderImage />
-      </View>
-      <FormInput label="First Name" placeholder='Your legendary first name here' type="text" onChange={() => {}} value={''} required />
-      <FormInput label="Last Name" placeholder='The last name your gym buddies yell' type="text" onChange={() => {}} value={''} required />
-      <FormDatePicker label="Date of Birth" value={dob} onChange={setDob} required />
+    <StickyHeader title={t.screenTitle}>
+      <HeaderWithExtra back="Start" title={t.title} subtitle={t.subtitle}>
+        <RHFImageUpload control={control} name="avatar_url" filepath="users" variant="square" size={75} source="both" />
+      </HeaderWithExtra>
+
+      <RHFInput control={control} name="firstName" label={t.firstName.label} placeholder={t.firstName.placeholder} required />
+      <RHFInput control={control} name="lastName"  label={t.lastName.label}  placeholder={t.lastName.placeholder}  required />
+      <RHFDatePicker control={control} name="dob"  label={t.dob.label} required />
+      <RHFDropdown control={control} name="gender" label={t.gender.label} required options={genderOptions}/>
+
       <View style={__base.divider} />
-      <Text style={[__base.textBold]}>Login Details</Text>
-      <Text style={[__base.textSubline]}>
-        Secure your account with a strong email and password
-      </Text>
-      <FormInput label="Email" placeholder='john.doe@indigo.la' type="email" onChange={setEmail} value={email} required />
-      <FormInput label="Password" placeholder='Your password' type="password" onChange={setPassword} value={password} showStrengthBar={false} required/>
-      <Checkbox value={agreed} onChange={setAgreed} label="I agree with Terms and Privacy Policy" onPressLink={() => { console.log('Terms pressed'); }}/>
-      <CustomButton title="Create Account" backgroundColor="#000" textColor="#FFF" onPress={() => navigation.navigate('Measurements') }/>
+
+      <Text style={[__base.textBold]}>{t.login.title}</Text>
+      <Text style={[__base.textSubline]}>{t.login.subline}</Text>
+
+      <RHFInput control={control} name="email"    label={t.email.label}    placeholder={t.email.placeholder}    type="email"    required />
+      <RHFInput control={control} name="password" label={t.password.label} placeholder={t.password.placeholder} type="password" required  />
+
+      <RHFCheckbox control={control} name="agreed" label={t.terms.label} onPressLink={() => { /* open terms */ }} />
+
+      <CustomButton title={t.cta} backgroundColor="#000" textColor="#FFF" onPress={onSubmit} disabled={!canSubmit} />
     </StickyHeader>
   );
 }

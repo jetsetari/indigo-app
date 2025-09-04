@@ -66,7 +66,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#444',
     borderRadius: 0,
-    padding: 14,
+    padding: 10,
     height: 45,
     flexDirection: 'row',
     justifyContent: 'space-between',

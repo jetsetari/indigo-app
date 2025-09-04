@@ -11,8 +11,7 @@ import Login from '~/screens/register/Login';
 import ForgotPassword from '~/screens/register/ForgotPassword';
 import Payment from '~/screens/register/Payment';
 
-import Measurements from '~/screens/intake/Measurements';
-import MeasurementsFat from '~/screens/intake/MeasurementsFat';
+import Metrics from '~/screens/intake/Metrics';
 import Goals from '~/screens/intake/Goals';
 import Level from '~/screens/intake/Level';
 import EatingHabits from '~/screens/intake/EatingHabits';
@@ -33,8 +32,7 @@ export type RootStackParamList = {
   Login: undefined;
   ForgotPassword: undefined;
   Main: undefined;
-  Measurements: undefined;
-  MeasurementsFat: undefined;
+  Metrics: undefined;
   Goals: undefined;
   Level: undefined;
   EatingHabits: undefined;
@@ -65,8 +63,7 @@ export default function Routes() {
               <Stack.Screen name="Login" component={Login} />
               <Stack.Screen name="ForgotPassword" component={ForgotPassword} />
               <Stack.Screen name="Register" component={Register} />
-              <Stack.Screen name="Measurements" component={Measurements} />
-              <Stack.Screen name="MeasurementsFat" component={MeasurementsFat} />
+              <Stack.Screen name="Metrics" component={Metrics} />
               <Stack.Screen name="Goals" component={Goals} />
               <Stack.Screen name="Level" component={Level} />
               <Stack.Screen name="EatingHabits" component={EatingHabits} />

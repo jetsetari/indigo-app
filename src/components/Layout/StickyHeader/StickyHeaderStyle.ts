@@ -25,7 +25,7 @@ export const styles = StyleSheet.create({
   },
   scrollContainer: {
     padding: 0, backgroundColor: '#000000',
-    flexGrow: 1,
+    flexGrow: 1
   },
   scrollContainerNoPadding: {
     backgroundColor: '#000000',
