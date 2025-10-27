@@ -24,6 +24,9 @@ export default StyleSheet.create({
   contentCenterTop: {
     height: 40, width: '100%', marginTop: 30
   },
+  paddingHorizontal: {
+    paddingHorizontal: 10
+  },
 
   space: {
     width: '100%', height: 10
@@ -36,6 +39,9 @@ export default StyleSheet.create({
   },
   text: {
     fontSize: 14, fontFamily: 'Inter-Light', color: '#FFF',
+  },
+  headline: {
+    fontSize: 26, fontFamily: 'Inter-SemiBold', color: '#FFF', marginBottom: 5
   },
   textSubline: {
     fontSize: 14, fontFamily: 'Inter-Light', color: '#FFF', marginBottom: 10
@@ -53,13 +59,17 @@ export default StyleSheet.create({
   textUnderline: {
     textDecorationLine: 'underline'
   },
-  errorMsg: { 
-    color: '#FFCC00', marginTop: -10, marginBottom: 10 
-  },
   footerLink: {
     fontSize: 14, fontFamily: 'Inter-Light', color: '#FFF', marginBottom: 10,
     textDecorationLine: 'underline', marginLeft: 'auto'
   },
+  textLabel: {
+    color: '#94a3b8', textTransform: 'uppercase', fontFamily: 'Inter-Bold', fontSize: 12
+  },
+  textInfo: {
+    color: '#fff', fontSize: 28, fontFamily: 'Inter-Bold'
+  },
+
 
   rowGap: { 
     justifyContent: 'space-between', flexDirection: 'row', alignItems: 'flex-end', gap: 0,
@@ -73,24 +83,26 @@ export default StyleSheet.create({
   },
 
 
-  infoBox: {
-    flexDirection: 'row', justifyContent: 'center', alignItems: 'center', 
-    backgroundColor: '#111', borderRadius: 0, paddingVertical: 20, 
-    marginBottom: 20, padding: 10,
+  inputWrapper: { marginBottom: 10 },
+  errorMsg: {
+    color: '#FFCC00', fontSize: 12, fontFamily: 'Inter-Regular', 
+    marginTop: -12, marginBottom: 10
   },
-  infoBoxColumn: {
-    alignItems: 'center', flex: 1, justifyContent: 'center'
+  asterix: { color: '#FF9C7B' },
+  label: {
+    fontFamily: 'Inter-SemiBold', fontSize: 13, color: '#FFF', 
+    marginBottom: 5,
   },
-  infoBoxIcon: {
-    marginBottom: 10
+  inputField: {
+    flex: 1, fontFamily: 'Inter-Light', fontSize: 14, 
+    color: '#FFF', height: 45, width: '100%',
   },
-  infoBoxValue: {
-    color: '#FFF', fontSize: 16, fontWeight: 'bold',
+  info: { 
+    marginLeft: 6, marginBottom: 5 
   },
-  infoBoxLabel: {
-    color: '#EEE', fontSize: 14, marginTop: 4, 
-    fontFamily: 'Inter-Regular',
-  },
+
+
+  
   
   
 })

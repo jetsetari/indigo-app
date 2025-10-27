@@ -1,8 +1,9 @@
 // src/data/supabase/uploadImage.ts
-import { getSupabase } from './connection';
+import { supabase } from './connection';
 import * as MediaLibrary from 'expo-media-library';
 import * as FileSystem from 'expo-file-system';
 import { decode as base64ToArrayBuffer } from 'base64-arraybuffer';
+import { resizeToBoundingBox } from '../helpers/imageResizer';
 
 type Args = {
   uri: string;
@@ -21,14 +22,16 @@ export async function uploadImage({
   contentType,
   makePublic = true,
 }: Args): Promise<string | null> {
-  const supabase = getSupabase();
 
-  const resolved = await resolveLocalFileUri(uri);
+  const { uri: scaledUri } = await resizeToBoundingBox(uri, 1200, 0.82);
+  const resolved = await resolveLocalFileUri(scaledUri);
 
   const extFromUri = getExt(resolved) || 'jpg';
   const extFromName = getExt(filename);
   const ext = extFromName || extFromUri;
   const finalContentType = contentType || guessContentType(ext);
+
+
 
   const safeName = ensureExt(sanitize(filename), ext);
   const safePath = joinPath(sanitize(filepath), safeName);
@@ -58,6 +61,21 @@ export async function uploadImage({
     return data.signedUrl ?? null;
   }
 }
+
+async function uriToBlob(uri: string): Promise<Blob> {
+  const res = await fetch(uri);
+  return await res.blob();
+}
+type UploadOpts = {
+  uri: string;
+  bucket?: string;              // default 'files'
+  folder?: string;              // e.g. 'clients'
+  filename?: string;            // without extension -> we'll add .jpg
+  maxEdge?: number;             // default 1200
+  compress?: number;            // 0..1 (default 0.82)
+};
+
+
 
 /* ------------------------------- helpers -------------------------------- */
 

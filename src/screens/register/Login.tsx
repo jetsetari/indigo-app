@@ -1,71 +1,63 @@
 // src/screens/register/Login.tsx
-import React, { useState } from 'react';
-import { View, StyleSheet, Text, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
+import React from 'react';
+import { View, Text, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import BgVideo from '~/components/Layout/BgVideo';
+import { useForm } from 'react-hook-form';
 
+import BgVideo from '~/components/Layout/BgVideo';
 import CustomButton from '~/components/Buttons/CustomButton';
-import IconButton from '~/components/Buttons/IconButton';
-import FormInput from '~/components/Form/Input';
+import { FormInput } from '~/components/Form';
 import Logo from '~/components/Layout/Logo';
-import { toastError, toastSuccess } from '~/data/helpers/toast';
-import { signIn } from '~/data/supabase/authHandler';
+import IconButton from '~/components/Buttons/IconButton';
+
+import useTranslation from '~/data/helpers/translation';
+import { signInAndGetNext } from '~/data/supabase/authHandler';
+import { LoginForm } from '~/data/types';
+import { loginDefault } from '~/data/forms/defaultValues';
+import { validateLogin } from '~/data/forms/validationRules';
 
 import __base from '~/assets/styles/base';
 
 export default function Login() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [busy, setBusy] = useState(false);
   const navigation = useNavigation<any>();
+  const t = useTranslation().login;
+  const { control, handleSubmit, formState: { isSubmitting }} = useForm<LoginForm>({
+    defaultValues: loginDefault, mode: 'all',
+  });
 
-  const onLogin = async () => {
-    if (!email || !password) {
-      toastError('Missing details', 'Please enter both your email and password to continue.');
-      return;
-    }
+  const onLogin = async ({ email, password }: LoginForm) => {
     try {
-      setBusy(true);
-      await signIn(email, password);
-      toastSuccess('Welcome back 👋','You’re now signed in.');
-      navigation.navigate('Home');
-    } catch (e: any) {
+      const { next } = await signInAndGetNext(email, password);
+      console.log(next);
+      navigation.navigate(next);
+    } catch (e:any) {
       console.log(e);
-      toastError('Login failed', e?.message ?? 'We couldn’t sign you in. Please check your details and try again.');
-    } finally {
-      setBusy(false);
     }
   };
 
   return (
     <View style={__base.container}>
-      <BgVideo
-        source={require('~/assets/videos/background-4.mp4')}
-        overlayStyle={{ backgroundColor: 'rgba(0,0,0,0.7)' }}
-      />
+      <BgVideo source={{ uri: 'https://vimeo.com/1120852196' }} overlayStyle={{backgroundColor: 'rgba(0,0,0,0.8)'}} resizeMode="cover"/>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }} keyboardVerticalOffset={0}>
         <ScrollView contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled">
           <View style={__base.contentCenterTop}>
             <IconButton route="Start" />
           </View>
-
           <View style={__base.contentCenter}>
             <View style={__base.contentCenterLogo}>
               <Logo />
             </View>
             <View style={__base.contentCenterBottom}>
               <View style={__base.divider} />
-              <Text style={[__base.textBold]}>Welcome Back</Text>
-              <Text style={[__base.textSubline]}>
-                Let’s pick up where you left off {"\n"}— your goals are waiting.
-              </Text>
-              <FormInput label="Email" placeholder="john.doe@indigo.la" type="email" onChange={setEmail} value={email} required />
-              <FormInput label="Password" placeholder="Your password" type="password" onChange={setPassword} value={password} showStrengthBar={false} required />
-              <CustomButton title={busy ? 'Signing in…' : 'Login'} backgroundColor="#FFF" textColor="#000" onPress={onLogin} disabled={busy} />
+              <Text style={[__base.textBold]}>{t.title}</Text>
+              <Text style={[__base.textSubline]}>{t.subline}</Text>
+              <FormInput control={control} name="email" label={t.emailLabel} placeholder={t.emailPlaceholder} type="email" required rules={validateLogin.email}/>
+              <FormInput control={control} name="password" label={t.passwordLabel} placeholder={t.passwordPlaceholder} type="password" required rules={validateLogin.password}/>
+              <CustomButton title={isSubmitting ? t.submitSubmitting : t.submitIdle} backgroundColor="#FFF" textColor="#000" onPress={handleSubmit(onLogin)} disabled={isSubmitting} />
               <View style={__base.space} />
-              <TouchableOpacity onPress={() => navigation.navigate('ForgotPassword')}>
-                <Text style={[__base.footerLink]}>Forgot Password?</Text>
-              </TouchableOpacity>
+              {/*<TouchableOpacity onPress={() => navigation.navigate('ForgotPassword')}>
+                <Text style={[__base.footerLink]}>{t.forgotPassword}</Text>
+              </TouchableOpacity>*/}
             </View>
           </View>
         </ScrollView>

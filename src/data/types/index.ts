@@ -1,71 +1,126 @@
 // src/data/types/index.ts
-
-/** Auth / registration */
-export type RegisterInput = {
+export type LoginForm = {
   email: string;
   password: string;
-  first_name?: string | null;
-  last_name?: string | null;
-  dob?: Date | null;
-  language?: string | null;          // 'nl' | 'en' etc.
-  gender?: 'male' | 'female' | 'other' | null;
-  avatar_url?: string | null;
 };
 
-/** DB enums (what the database expects) */
-export type MetricSystemDB = 'metric' | 'imperial';   // map from UI values
-export type MeasuredBy = 'manual' | 'ai';
-
-/** UI enums (what the app shows) */
-export type MetricSystemUI = 'kg/cm' | 'lbs/inches';
+// type RegistrationForm = {
+//   avatarUrl: string | null;
+//   firstName: string;
+//   lastName: string;
+//   dob?: Date | null;
+//   gender?: 'male' | 'female' | 'other' | null;
+//   email: string;
+//   password: string;
+//   agreed: boolean;
+//   language?: string | null;
+// };
 
 /** Public “clients” row */
 export type ClientRow = {
   id: number;
   email: string;
-  first_name: string;               // NOT NULL in your schema
-  last_name: string | null;
+  firstName: string;               // NOT NULL in your schema
+  lastName: string | null;
   dob: string | null;               // ISO yyyy-mm-dd
   gender: string | null;
-  avatar_url: string | null;
+  avatarUrl: string | null;
   language: string | null;
+  trainingDays: string[] | null;
+  createdAt: string;
+  metricSystem?: string;
+  lastWeight?:number;
+  desiredWeight?:number;
+  height?:number;
+  eatingHabits?:string;
+  mealsPerDay?:any;
+  dailyKcalIntake?:number;
+  weightGoals?:any;
+  performanceGoals?:any;
+  sportGoals?:any;
+  groupExperience?:any;
+  trainingExperience?:any;
+  trainingHours?:any;
+  supplements?:any;
+  notes?:string;
 };
 
-/** Metrics (client_metrics) */
-export type ClientMetricsRow = {
-  id: number;
-  client_id: number;
-  metric_system: MetricSystemDB;
-  weight: number;
-  weight_goal: number;
-  height: number;
-  fat_percentage: number | null;
-  measured_by: MeasuredBy;
-  image_front: string | null;
-  image_side: string | null;
-  image_back: string | null;
+export type MeasurementRow = {
+  clientId: number;
+  date?: string;
+  weight?: number | null;
+  bodyfat?: number | null;
+  pictureFront?: string | null;
+  pictureSide?: string | null;
+  pictureBack?: string | null;
+  measurementType?: 'manual' | 'ai';
+  checklist?: string[] | null;
 };
 
-/** Goals (client_goals) — one row per client */
 export type ClientGoalsRow = {
-  id: number;
-  client_id: number;
-  weight_goal: string | null;
-  sessions_per_week?: number | null;
-  training_days?: string[] | null;  // _text
-  training_history?: string | null;
-  notes?: string | null;
-  training_hours?: number | null;
-  competitive?: boolean | null;
-  body_analysis?: string | null;
+  weightGoals: string[];
+  performanceGoals: string[];
+  sportGoals: string[];
 };
 
-export type ClientUpsertInput = {
-  email: string;
-  first_name?: string | null;
-  last_name?: string | null;
-  dob?: Date | null;          // JS Date coming in
-  gender?: string | null;
-  avatar_url?: string | null;
-  language?: string | null;
+
+
+
+/** ---------- Types returned to the app ---------- */
+export type MuscleGroup = {
+  id: number;
+  name: string;
+  description: string | null;
+  image: string | null;
+};
+
+export type Exercise = {
+  id: number;
+  name: string;
+  description: string | null;
+  type: string | null;
+  level: number | null;
+  tags: string[] | null;
+  cover: string | null;
+  video: string | null;
+  muscleGroup?: MuscleGroup | null;
+};
+
+export type WorkoutItem = {
+  id: number;
+  dayId: number;
+  position: number;
+  supersetLabel: string | null;
+  exerciseId: number | null;
+  sets: number | null;
+  reps: string | null;       // text in DB (e.g., "8–10" or "10,10,8,8")
+  weight: number | null;
+  restSeconds: number | null;
+  notes: string | null;
+  exercise?: Exercise | null;
+};
+
+export type WorkoutDay = {
+  id: number;
+  weekId: number;
+  dayIndex: number;
+  title: string | null;
+  items: WorkoutItem[];
+};
+
+export type WorkoutWeek = {
+  id: number;
+  programId: number;
+  weekIndex: number;
+  createdAt: string | null;
+  days: WorkoutDay[];
+};
+
+export type WorkoutProgram = {
+  id: number;
+  title: string;
+  createdByEmail: string | null;
+  createdAt: string | null;
+  sourceProgramId: number | null;
+  weeks: WorkoutWeek[];
 };

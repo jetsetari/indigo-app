@@ -1,5 +1,4 @@
 // helpers/homeMap.ts
-import type { WorkoutItem } from '~/data/supabase/workoutsHandler';
 import type { ImageSourcePropType } from 'react-native';
 
 export type SelectOption = {
@@ -10,7 +9,7 @@ export type SelectOption = {
   screen: string;
 };
 
-export function mapItemsToOptions(items: WorkoutItem[]): SelectOption[] {
+export function mapItemsToOptions(items: any[]): SelectOption[] {
   return items.map((it) => {
     const ex = it.exercise;
     const left = it.superset_label ? `${it.superset_label} · ` : '';

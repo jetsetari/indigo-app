@@ -8,7 +8,7 @@ function Logo() {
   return (
     <View style={styles.logoContainer}>
       <Image source={require('~/assets/images/logo.png')} style={styles.logo} resizeMode="contain" />
-      <Text style={ styles.logoText }>We'll Take The Work Out</Text>
+      <Text style={ styles.logoText }>Take The Work Out</Text>
     </View>
   );
 }

@@ -1,57 +1,32 @@
 // src/components/Layout/BgVideo/index.tsx
 import React, { memo, useMemo } from 'react';
-import { StyleSheet, View, ViewStyle } from 'react-native';
+import { StyleSheet, View, ViewStyle, Image, ImageBackground } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { useVideoPlayer, VideoView, VideoContentFit } from 'expo-video';
+import { Dimensions } from 'react-native';
 
-/**
- * Accepts either a local require() (number) or a remote URI.
- * If the URI is a Vimeo link, we render the official Vimeo player via WebView.
- */
 export type BgVideoSource = number | { uri: string };
 
 export type BgVideoProps = {
   source: BgVideoSource;
-
-  /** Background defaults: autoplay, loop, muted */
-  loop?: boolean;          // default: true
-  autoPlay?: boolean;      // default: true
-  muted?: boolean;         // default: true
-
-  /** How the video fits its container (default 'cover') */
+  loop?: boolean;
+  autoPlay?: boolean;
+  muted?: boolean;
   resizeMode?: VideoContentFit; // 'cover' | 'contain' | 'fill' | 'scale-down'
-
-  /** Optional overlay to darken/lighten the video */
   overlayStyle?: ViewStyle;
-
-  /** Extra style for the actual video/webview layer */
   videoStyle?: ViewStyle;
-
-  /** Vimeo-only param overrides */
   vimeoParams?: Partial<{
-    autoplay: 0 | 1;
-    loop: 0 | 1;
-    background: 0 | 1;
-    muted: 0 | 1;
-    controls: 0 | 1;
+    autoplay: 0 | 1; loop: 0 | 1; background: 0 | 1; muted: 0 | 1; controls: 0 | 1;
     quality: 'auto' | '4k' | '2k' | '1080p' | '720p' | '540p' | '360p';
   }>;
+  coverImage?: string;
 };
+const { width, height } = Dimensions.get('window');
+const isVimeoUrl = (u?: string) => !!u && /(^https?:\/\/)?(player\.)?vimeo\.com/.test(u);
+const extractVimeoId = (url: string) =>
+  (url.match(/vimeo\.com\/(?:video\/)?(\d+)/) || url.match(/player\.vimeo\.com\/video\/(\d+)/))?.[1] ?? null;
 
-function isVimeoUrl(u?: string) {
-  if (!u) return false;
-  return /(^https?:\/\/)?(player\.)?vimeo\.com/.test(u);
-}
-
-function extractVimeoId(url: string): string | null {
-  // Supports: https://vimeo.com/123456789 or https://player.vimeo.com/video/123456789
-  const match =
-    url.match(/vimeo\.com\/(?:video\/)?(\d+)/) ||
-    url.match(/player\.vimeo\.com\/video\/(\d+)/);
-  return match?.[1] ?? null;
-}
-
-/** Native (expo-video) background player */
+/* ---------- Native (expo-video) ---------- */
 const BgVideoNative: React.FC<
   Required<Pick<BgVideoProps, 'source'>> &
   Pick<BgVideoProps, 'loop' | 'autoPlay' | 'muted' | 'resizeMode' | 'videoStyle'>
@@ -64,18 +39,18 @@ const BgVideoNative: React.FC<
 
   return (
     <VideoView
-      style={[styles.absoluteFill, videoStyle]}
+      style={[StyleSheet.absoluteFill, videoStyle]}
       player={player}
       contentFit={resizeMode}
       allowsFullscreen={false}
       allowsPictureInPicture={false}
-      nativeControls={false}   // ensure no OS controls
-      pointerEvents="none"     // ignore taps (true background)
+      nativeControls={false}
+      pointerEvents="none"
     />
   );
 };
 
-/** Vimeo background via WebView (controls hidden, muted by default) */
+/* ---------- Vimeo (WebView) ---------- */
 const BgVideoVimeo: React.FC<
   Required<Pick<BgVideoProps, 'source'>> &
   Pick<BgVideoProps, 'autoPlay' | 'loop' | 'muted' | 'vimeoParams' | 'videoStyle'>
@@ -85,41 +60,64 @@ const BgVideoVimeo: React.FC<
   const vimeoEmbedUrl = useMemo(() => {
     const id = extractVimeoId(uri);
     if (!id) return null;
-
     const params = new URLSearchParams({
       autoplay: String(vimeoParams?.autoplay ?? (autoPlay ? 1 : 0)),
       loop: String(vimeoParams?.loop ?? (loop ? 1 : 0)),
-      background: String(vimeoParams?.background ?? 1),     // background mode
-      muted: String(vimeoParams?.muted ?? (muted ? 1 : 0)), // muted
-      controls: String(vimeoParams?.controls ?? 0),         // hide controls
+      background: String(vimeoParams?.background ?? 1),
+      muted: String(vimeoParams?.muted ?? (muted ? 1 : 0)),
+      controls: String(vimeoParams?.controls ?? 0),
       quality: String(vimeoParams?.quality ?? 'auto'),
       playsinline: '1',
       transparent: '0',
     }).toString();
-
     return `https://player.vimeo.com/video/${id}?${params}`;
   }, [uri, autoPlay, loop, muted, vimeoParams]);
 
   if (!vimeoEmbedUrl) return null;
 
-  return (
-    <WebView
-      style={[styles.absoluteFill, videoStyle]}
-      source={{ uri: vimeoEmbedUrl }}
-      allowsInlineMediaPlayback
-      mediaPlaybackRequiresUserAction={false}
-      javaScriptEnabled
-      scrollEnabled={false}
-      bounces={false}
-      automaticallyAdjustContentInsets={false}
-      androidHardwareAccelerationDisabled={false}
-      setSupportMultipleWindows={false}
-      pointerEvents="none"     // ignore taps (true background)
-    />
-  );
+  const html = `<!doctype html>
+    <html><head>
+    <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
+    <style>
+      html,body{margin:0;height:100%;overflow:hidden;background:#000}
+      .wrap{position:fixed;inset:0;overflow:hidden;background:#000}
+      /* 16:9 cover hack: fill and crop like object-fit: cover */
+      .frame{
+        position:absolute;top:50%;left:50%;
+        width:100vw;height:56.25vw;           /* 9/16 = 0.5625 */
+        min-width:177.78vh;min-height:100vh;  /* 16/9 = 1.7778 */
+        transform:translate(-50%,-50%);
+        border:0;
+      }
+    </style>
+    </head><body>
+      <div class="wrap">
+        <iframe class="frame"
+          src="${vimeoEmbedUrl}"
+          allow="autoplay; fullscreen; picture-in-picture"
+          allowfullscreen></iframe>
+      </div>
+    </body></html>`;
+
+    return (
+      <WebView
+        source={{ html }}
+        style={[StyleSheet.absoluteFill, { backgroundColor: '#000' }]}
+        containerStyle={[StyleSheet.absoluteFill, { backgroundColor: '#000' }]}
+        contentInsetAdjustmentBehavior="never"
+        automaticallyAdjustContentInsets={false}
+        allowsInlineMediaPlayback
+        mediaPlaybackRequiresUserAction={false}
+        javaScriptEnabled
+        scrollEnabled={false}
+        bounces={false}
+        setSupportMultipleWindows={false}
+        pointerEvents="none"
+      />
+    );
 };
 
-/** Public component: picks native vs Vimeo automatically */
+/* ---------- Public ---------- */
 const BgVideo: React.FC<BgVideoProps> = ({
   source,
   loop = true,
@@ -129,13 +127,23 @@ const BgVideo: React.FC<BgVideoProps> = ({
   overlayStyle,
   videoStyle,
   vimeoParams,
+  coverImage
 }) => {
   const isRemote = typeof source === 'object' && !!(source as any)?.uri;
-  const uri = isRemote ? (source as any).uri as string : undefined;
+  const uri = isRemote ? ((source as any).uri as string) : undefined;
   const useVimeo = isRemote && isVimeoUrl(uri);
 
   return (
-    <View style={styles.container}>
+    <View style={styles.container} pointerEvents="none">
+      <View style={[StyleSheet.absoluteFill, { backgroundColor: '#000' }]}>
+      {coverImage ? (
+        <ImageBackground
+          source={{ uri: coverImage }}
+          style={[StyleSheet.absoluteFillObject, { width: '100%', height: '100%' }]}
+          resizeMode='cover'
+        />
+      ) : null}
+    </View>
       {useVimeo ? (
         <BgVideoVimeo
           source={source as { uri: string }}
@@ -155,17 +163,15 @@ const BgVideo: React.FC<BgVideoProps> = ({
           videoStyle={videoStyle}
         />
       )}
-
-      {overlayStyle ? (
-        <View pointerEvents="none" style={[styles.absoluteFill, overlayStyle]} />
-      ) : null}
+      
+      {overlayStyle ? <View style={[StyleSheet.absoluteFill, overlayStyle]} /> : null}
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: { ...StyleSheet.absoluteFillObject },
-  absoluteFill: { ...StyleSheet.absoluteFillObject },
+  // absolutely pin to the parent; no margins, full screen
+  container: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 },
 });
 
 export default memo(BgVideo);

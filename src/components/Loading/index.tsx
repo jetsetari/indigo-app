@@ -1,11 +1,12 @@
 import React, { useRef } from 'react';
-import { View } from 'react-native';
+import { View, Text } from 'react-native';
 import { styles } from './LoadingStyle';
 import LottieView from 'lottie-react-native';
 
-function Loading() {
-  const animation = useRef<LottieView>(null);
+type LoadingProps = { text?: string };
 
+function Loading({ text }: LoadingProps) {
+  const animation = useRef<LottieView>(null);
 
   return (
     <View style={styles.container}>
@@ -16,6 +17,7 @@ function Loading() {
         style={styles.spinner}
         source={require('./lottie/indigo.json')}
       />
+      {text ? <Text style={styles.message}>{text}</Text> : null}
     </View>
   );
 }

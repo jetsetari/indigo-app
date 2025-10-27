@@ -1,77 +1,113 @@
-import React, { useState, useRef } from 'react';
-import {
-  Text,
-  View,
-  TouchableOpacity,
-  Platform,
-  findNodeHandle,
-} from 'react-native';
+import React, { useMemo, useRef, useState } from 'react';
+import { View, Text, TouchableOpacity } from 'react-native';
+import { Controller, type FieldValues, type Path } from 'react-hook-form';
 import RNPickerSelect from 'react-native-picker-select';
 import { Feather } from '@expo/vector-icons';
+
 import { styles } from './DropdownStyle';
+import __base from '~/assets/styles/base';
+import { runSelectValidators, type SelectRule } from '../validation';
 
-type Option = {
-  label: string;
-  value: string;
-};
+type OptionIn = { label: string; value: string | number };
 
-type Props = {
+export type FormDropdownProps<T extends FieldValues = FieldValues> = {
+  control: unknown;                 // RHF Control<any>
+  name: Path<T>;
   label?: string;
-  required?: boolean;
-  onChange: (value: string) => void;
-  value: string;
-  options: Option[];
+  required?: boolean;               // visual + validator flag
+  options: OptionIn[];
+  parseAsNumber?: boolean;          // convert selected value back to number in form state
+  placeholder?: string;             // fallback: 'Select an option...'
+  rules?: SelectRule[];             // shared validator rules (required for now)
+  noMargin?: boolean;
 };
 
-export default function Dropdown({
+export default function FormDropdown<T extends FieldValues = FieldValues>({
+  control,
+  name,
   label,
   required = false,
-  onChange,
-  value,
   options,
-}: Props) {
+  parseAsNumber = false,
+  placeholder = 'Select an option...',
+  rules = [],
+  noMargin = false,
+}: FormDropdownProps<T>) {
   const [focused, setFocused] = useState(false);
-  const pickerRef = useRef<any>('');
+  const pickerRef = useRef<any>(null);
 
-  const openPicker = () => {
-    if (pickerRef.current) {
-      pickerRef.current.togglePicker();
-    }
-  };
+  // normalize to string for RNPickerSelect (mirrors your current base component)
+  const normalized = options.map(o => ({ label: o.label, value: String(o.value) }));
+  const [touched, setTouched] = useState(false);
+  const openPicker = () => pickerRef.current?.togglePicker?.();
 
   return (
-    <View style={{ marginBottom: 15 }}>
-      { label && <Text style={styles.label}>
-        {label}
-        {required && <Text style={{ color: 'red' }}> *</Text>}
-      </Text> }
+    <Controller
+      // @ts-expect-error loosen control typing
+      control={control}
+      name={name}
+      rules={{
+        validate: (v: unknown) => {
+          const res = runSelectValidators(v as any, rules, required);
+          return res === true ? true : res;
+        },
+      }}
+      render={({ field: { value, onChange }, fieldState: { error } }) => {
+        const displayValue =
+          typeof value === 'number' ? String(value) : ((value as any) ?? '');
 
-      <TouchableOpacity
-        activeOpacity={0.9}
-        onPress={openPicker}
-        style={[styles.input, focused && styles.inputFocused]}
-      >
-        <View pointerEvents="none">
-          <RNPickerSelect
-            ref={pickerRef}
-            onValueChange={onChange}
-            items={options}
-            value={value}
-            useNativeAndroidPickerStyle={false}
-            onOpen={() => setFocused(true)}
-            onClose={() => setFocused(false)}
-            style={{
-              inputIOS: styles.selectText,
-              inputAndroid: styles.selectText,
-              iconContainer: styles.icon,
-            }}
-            Icon={() => (
-              <Feather name="chevrons-down" size={20} color="#FFF" />
+        const handleChange = (v: string) => {
+          const next = parseAsNumber ? (v === '' ? (undefined as any) : Number(v)) : v;
+          onChange(next as any);
+        };
+
+        // compute message eagerly so blur/focus updates error instantly
+        const errorMsg = useMemo(() => {
+          if (!touched) return '';
+          const res = runSelectValidators(value as any, rules, required);
+          return res === true ? '' : (res as string);
+        }, [value, rules, required, touched]);
+
+        return (
+          <View style={{ marginBottom: (noMargin ? 0 : 15) }}>
+            {!!label && (
+              <Text style={__base.label}>
+                {label}
+                {required && <Text style={__base.asterix}> *</Text>}
+              </Text>
             )}
-            placeholder={{ label: 'Select an option...', value: '' }}
-          />
-        </View>
-      </TouchableOpacity>
-    </View>
+
+            <TouchableOpacity
+              activeOpacity={0.9}
+              onPress={() => { openPicker(); setTouched(true) }}
+              style={[styles.input, focused && styles.inputFocused]}
+            >
+              <View pointerEvents="none">
+                <RNPickerSelect
+                  ref={pickerRef}
+                  onValueChange={handleChange}
+                  items={normalized}
+                  value={displayValue}
+                  useNativeAndroidPickerStyle={false}
+                  onOpen={() => setFocused(true)}
+                  onClose={() => setFocused(false)}
+                  style={{
+                    inputIOS: styles.selectText,
+                    inputAndroid: styles.selectText,
+                    iconContainer: styles.icon,
+                  }}
+                  Icon={() => <Feather name="chevrons-down" size={20} color="#FFF" />}
+                  placeholder={{ label: placeholder, value: '' }}
+                />
+              </View>
+            </TouchableOpacity>
+
+            {!!(errorMsg || error?.message) && (
+              <Text style={[__base.errorMsg, { marginTop: 4 }]}>{String(errorMsg || error?.message)}</Text>
+            )}
+          </View>
+        );
+      }}
+    />
   );
 }
