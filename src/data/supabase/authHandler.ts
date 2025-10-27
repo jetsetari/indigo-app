@@ -1,84 +1,132 @@
-// src/data/supabase/authHandler.ts
-import { getSupabase } from './connection';
-import { ensureClientByEmail } from './clientsHandler';
-import { useUserStore } from '~/data/store/userStore';
-import type { RegisterInput } from '~/data/types';
-import type { ClientUpsertInput } from '~/data/types';
+import { supabase } from './connection';
+import { useUserStore } from '../store/userStore';
+import useTranslation from '~/data/helpers/translation';
+import { prepareClientRow, fetchClientByEmail } from '~/data/supabase/clientsHandler';
+import { toastError, toastSuccess } from '~/data/helpers/toast';
+import { snakeToCamel } from '../helpers';
 
-export async function registerAndBootstrap(input: RegisterInput) {
-  const supabase = getSupabase();
+const t = useTranslation().login;
 
-  const { data: signUpData, error: signUpErr } = await supabase.auth.signUp({
-    email: input.email,
-    password: input.password,
-    options: { data: {
-      first_name: input.first_name ?? null,
-      last_name : input.last_name  ?? null,
-      dob       : input.dob ? input.dob.toISOString() : null,
-      language  : input.language ?? 'nl',
-      gender    : input.gender ?? null,
-      avatar_url: input.avatar_url ?? null,
-    } },
-  });
-  if (signUpErr && !/registered/i.test(signUpErr.message)) throw signUpErr;
+export async function signIn(email: string, password: string) {
+  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+  if (error) {
+    toastError(t.toastFailTitle, error.message ?? t.toastFailBodyFallback);
+    throw error;
+  }
+  const client = await fetchClientByEmail(email).catch(() => null);
+  const store = useUserStore.getState();
+  store.setAuth?.({ user: data.user, session: data.session });
+  if (client) store.setClient?.(client);
+  toastSuccess(t.toastSuccessTitle, t.toastSuccessBody);
+  return data;
+}
 
-  let user = signUpData?.user;
-  let session = signUpData?.session;
-  if (!session) {
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email: input.email, password: input.password,
-    });
-    if (error) throw error;
-    user = data.user; session = data.session;
+export async function logout(navigation: any) {
+  try {
+    await supabase.auth.signOut();
+  } catch (e) {
+    console.warn('logout failed', e);
+  } finally {
+    useUserStore.getState().setClient?.(null);
+    navigation.reset({ index: 0, routes: [{ name: 'Start' }] });
+  }
+}
+
+export async function createAndLoginClient(form: any) {
+  const { email, password } = form ?? {};
+  if (!email || !password) throw new Error('email and password are required');
+
+  let user = null, session = null;
+  const signUp = await supabase.auth.signUp({ email, password });
+  if (signUp.error) {
+    const signInRes = await supabase.auth.signInWithPassword({ email, password });
+    if (signInRes.error) throw signInRes.error;
+    user = signInRes.data.user;
+    session = signInRes.data.session;
+  } else {
+    user = signUp.data.user;
+    session = signUp.data.session;
   }
 
-  const client = await ensureClientByEmail({
-    email: input.email,
-    first_name: input.first_name ?? '',
-    last_name : input.last_name ?? null,
-    dob       : input.dob ? new Date(input.dob) : null,
-    gender    : input.gender ?? null,
-    avatar_url: input.avatar_url ?? null,
-    language  : input.language ?? 'nl',
-  } satisfies ClientUpsertInput);
+  const row = prepareClientRow(form);
+  const { data: existing, error: selErr } = await supabase
+    .from('clients').select('id').eq('email', email).maybeSingle();
+  if (selErr) throw selErr;
 
-  try { await supabase.auth.updateUser({ data: { client_id: client.id } }); } catch {}
+  if (existing?.id) {
+    const { error: updErr } = await supabase.from('clients').update(row).eq('id', existing.id);
+    if (updErr) throw updErr;
+  } else {
+    const { error: insErr } = await supabase.from('clients').insert(row);
+    if (insErr) throw insErr;
+  }
 
-  const { setAuth, setClient } = useUserStore.getState();
-  setAuth({ session, user });
-  setClient(client);
+  // 3) fetch fresh client & hydrate store
+  const client = await fetchClientByEmail(email);
+  const store = useUserStore.getState();
+  store.setAuth?.({ user, session });
+  store.setClient?.(client);
 
+  toastSuccess(t.toastSuccessTitle, t.toastSuccessBody);
   return { user, session, client };
 }
 
-export async function signIn(email: string, password: string) {
-  const supabase = getSupabase();
-  const { data, error } = await supabase.auth.signInWithPassword({
-    email: email.trim().toLowerCase(), password,
-  });
+export async function updatePassword(newPassword: string) {
+  const { error } = await supabase.auth.updateUser({ password: newPassword });
   if (error) throw error;
-
-  const meta = (data.user?.user_metadata ?? {}) as any;
-  const client = await ensureClientByEmail({
-    email,
-    first_name: (meta.first_name ?? '').toString(),
-    last_name : (meta.last_name ?? null),
-    dob       : meta.dob ? new Date(meta.dob) : null,
-    gender    : meta.gender ?? null,
-    avatar_url: meta.avatar_url ?? null,
-    language  : (meta.language ?? 'nl').toString(),
-  });
-
-  const { setAuth, setClient } = useUserStore.getState();
-  setAuth({ session: data.session, user: data.user });
-  setClient(client);
-
-  return { user: data.user, session: data.session, client };
 }
 
 
-export async function signOut() {
-  const supabase = getSupabase();
-  await supabase.auth.signOut();
-  useUserStore.getState().reset?.();
+export const INTAKE_KEYS = ['metrics','goals','level','eatinghabbits','supplements'] as const;
+export type IntakeKey = typeof INTAKE_KEYS[number];
+
+// explicit map → your screen component/route names
+const ROUTE_MAP: Record<IntakeKey, string> = {
+  metrics: 'Metrics',
+  goals: 'Goals',
+  level: 'Level',
+  eatinghabbits: 'EatingHabits', // note spelling vs DB key
+  supplements: 'Supplements',
+};
+
+export function nextIntakeRoute(done: string[] = []): string {
+  const next = INTAKE_KEYS.find(k => !done.includes(k));
+  return next ? ROUTE_MAP[next] : 'Home';
+}
+
+// signIn helper now returns route name (Caps)
+export async function signInAndGetNext(email: string, password: string) {
+  const { error } = await supabase.auth.signInWithPassword({ email, password });
+  if (error) throw error;
+
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user?.email) return { next: 'Start' as const };
+  const userEmail = user?.email ?? email;
+
+  const { data: clientRow, error: selErr } = await supabase
+  .from('clients')
+  .select(`
+    id, email, first_name, last_name,
+    avatar_url,
+    done_screens,
+    metric_system, desired_weight
+  `)
+  .eq('email', userEmail)
+  .single();
+
+
+if (!selErr && clientRow) {
+  const clientCamel = snakeToCamel(clientRow);   // avatar_url -> avatarUrl, done_screens -> doneScreens, ...
+  useUserStore.getState().setClient?.(clientCamel);
+}
+
+// keep your existing next-screen logic as-is…
+const { data: clientForNext } = await supabase
+  .from('clients')
+  .select('done_screens')
+  .eq('email', userEmail)
+  .single();
+
+const next = nextIntakeRoute(clientForNext?.done_screens ?? []);
+return { next };
 }

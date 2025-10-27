@@ -1,124 +1,127 @@
-// src/components/Form/Input.tsx
+// src/components/Form/FormInput.tsx
+import React, { useMemo, useState } from 'react';
+import { Text, TextInput, View, TouchableOpacity, Alert } from 'react-native';
+import { Feather } from '@expo/vector-icons';
+import { Controller, type FieldValues, type Path } from 'react-hook-form';
 
-import React, { useState } from 'react';
-import {
-  Text,
-  TextInput,
-  View,
-  TouchableOpacity,
-  Alert,
-} from 'react-native';
-import { Ionicons, Feather } from '@expo/vector-icons';
+// Styles (keep using your existing ones)
 import { styles } from './InputStyle';
+import __base from '~/assets/styles/base';
 
-type Props = {
+// Validation helpers
+import { runValidators, type Rule } from '../validation';
+
+export type InputType = 'text' | 'email' | 'password' | 'number';
+
+export type FormInputProps<T extends FieldValues = FieldValues> = {
+  control: unknown;                 // RHF Control<any>
+  name: Path<T>;
   label: string;
-  onChange: (value: string) => void;
-  required?: boolean;
-  type?: 'text' | 'email' | 'password' | 'number';
-  value: string;
   placeholder?: string;
-  showStrengthBar?: boolean;
-  /** If you pass this, an ℹ️ will appear next to the label */
-  info?: string;
+  type?: InputType;
+  required?: boolean;
+  info?: string;                    // ℹ️ next to label
+  rules?: Rule[];                   // optional client-side validations
+  showStrengthBar?: boolean;        // kept for parity; not rendered here
 };
 
-export default function FormInput({
+export default function FormInput<T extends FieldValues = FieldValues>({
+  control,
+  name,
   label,
-  onChange,
-  required = false,
-  type = 'text',
-  value,
   placeholder,
-  showStrengthBar = false,
+  type = 'text',
+  required,
   info,
-}: Props) {
+  rules = [],
+}: FormInputProps<T>) {
   const [focused, setFocused] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [touched, setTouched] = useState(false);
 
   const isPassword = type === 'password';
   const secure = isPassword && !showPassword;
-  const passwordStrength = getPasswordStrength(value);
+  const isNumber = type === 'number';
 
   const onInfoPress = () => {
     if (info) Alert.alert(label, info);
   };
 
   return (
-    <View style={{ marginBottom: 10 }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-        <Text style={styles.label}>
-          {label}
-          {required && <Text style={{ color: 'red' }}> *</Text>}
-        </Text>
-        {info && (
-          <TouchableOpacity onPress={onInfoPress} style={{ marginLeft: 6, marginBottom: 5 }}>
-            <Ionicons name="information-circle-outline" size={18} color="#888" />
-          </TouchableOpacity>
-        )}
-      </View>
+    <Controller
+      // @ts-expect-error: control typed loosely on purpose
+      control={control}
+      name={name}
+      rules={{
+        validate: (v: unknown) => {
+          const str = v == null ? '' : String(v);
+          const res = runValidators(str, rules, type, !!required);
+          return res === true ? true : res;
+        },
+      }}
+      render={({ field: { value, onChange }, fieldState: { error } }) => {
+        const stringValue = (value ?? '').toString();
+        const errorMsg = useMemo(() => {
+          if (!touched) return '';
+          const res = runValidators(stringValue, rules, type, !!required);
+          return res === true ? '' : res;
+        }, [stringValue, rules, type, required, touched]);
 
-      <View style={[styles.input, focused && styles.inputFocused]}>
-        <TextInput
-          style={styles.inputField}
-          value={value}
-          onChangeText={(text) => {
-            if (type === 'number') {
-              onChange(text.replace(/[^0-9]/g, ''));
-            } else {
-              onChange(text);
-            }
-          }}
-          autoCapitalize={type === 'email' ? 'none' : 'sentences'}
-          placeholder={placeholder || label}
-          placeholderTextColor="#AAA"
-          keyboardType={
-            type === 'email'
-              ? 'email-address'
-              : type === 'number'
-              ? 'numeric'
-              : 'default'
-          }
-          secureTextEntry={secure}
-          onFocus={() => setFocused(true)}
-          onBlur={() => setFocused(false)}
-        />
-        {isPassword && (
-          <TouchableOpacity
-            onPress={() => setShowPassword(!showPassword)}
-            style={styles.icon}
-          >
-            <Feather name={showPassword ? 'eye-off' : 'eye'} size={20} color={'#FFF'} />
-            {/*<Ionicons
-              name={showPassword ? 'eye-off' : 'eye'}
-              size={20}
-              color="#FFF"
-            />*/}
-          </TouchableOpacity>
-        )}
-      </View>
+        return (
+          <View style={__base.inputWrapper}>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <Text style={__base.label}>
+                {label}
+                {required && <Text style={__base.asterix}> *</Text>}
+              </Text>
+              {info && (
+                <TouchableOpacity onPress={onInfoPress} style={__base.info}>
+                  <Feather name="info" size={18} color="#888" />
+                </TouchableOpacity>
+              )}
+            </View>
 
-      {isPassword && showStrengthBar && value.length > 0 && (
-        <View style={styles.strengthWrapper}>
-          <View
-            style={[
-              styles.strengthBar,
-              passwordStrength === 'weak' && styles.weak,
-              passwordStrength === 'medium' && styles.medium,
-              passwordStrength === 'strong' && styles.strong,
-            ]}
-          />
-          <Text style={styles.strengthLabel}>{passwordStrength}</Text>
-        </View>
-      )}
-    </View>
+            <View style={[styles.input, focused && styles.inputFocused]}>
+              <TextInput
+                style={[__base.inputField, styles.inputField]}
+                value={stringValue}
+                onChangeText={(text) => {
+                  if (isNumber) {
+                    const digitsOnly = text.replace(/[^0-9]/g, '');
+                    onChange(digitsOnly === '' ? null : Number(digitsOnly));
+                  } else {
+                    onChange(text);
+                  }
+                }}
+                autoCapitalize={type === 'email' ? 'none' : 'sentences'}
+                placeholder={placeholder || label}
+                placeholderTextColor="#AAA"
+                keyboardType={
+                  type === 'email' ? 'email-address' : isNumber ? 'numeric' : 'default'
+                }
+                secureTextEntry={secure}
+                onFocus={() => setFocused(true)}
+                onBlur={() => {
+                  setFocused(false);
+                  setTouched(true);
+                }}
+              />
+
+              {isPassword && (
+                <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={styles.icon}>
+                  <Feather name={showPassword ? 'eye-off' : 'eye'} size={20} color={"#FFF"} />
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {!!(errorMsg || error?.message) && (
+              <Text style={[__base.errorMsg, { marginTop: 4 }]}>
+                {String(errorMsg || error?.message)}
+              </Text>
+            )}
+          </View>
+        );
+      }}
+    />
   );
-}
-
-function getPasswordStrength(pw: string): 'weak' | 'medium' | 'strong' {
-  return 'medium';
-  // if (pw.length < 6) return 'weak';
-  // if (pw.match(/[A-Z]/) && pw.match(/[0-9]/) && pw.length >= 8)
-  //   return 'strong';
-  // return 'medium';
 }

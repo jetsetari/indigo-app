@@ -1,100 +1,136 @@
-// src/screens/intake/Metrics.tsx
-import React, { useMemo, useCallback } from 'react';
-import { View, Text, Alert } from 'react-native';
+import React, { useMemo, useCallback, useEffect, useState } from 'react';
+import { View, Text } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useForm, useWatch } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
 
-import { RHFToggle, RHFHorizontalPicker, RHFDropdown, RHFInput, RHFImageUpload } from '~/components/Form';
 import StickyHeader from '~/components/Layout/StickyHeader';
 import HeaderWithExtra from '~/components/Layout/HeaderWithExtra';
 import CustomButton from '~/components/Buttons/CustomButton';
+import { FormToggle, FormHorizontalPicker, FormDropdown, FormInput, FormImageUpload } from '~/components/Form';
+import { useRoute } from '@react-navigation/native';
 
-import defaultValues from '~/data/forms/metrics/defaultValues';
-import { metricsSchema, type MetricsForm } from '~/data/forms/metrics/validation';
-import { buildSubmit, handleInvalid } from '~/data/forms/metrics/submit';
+import { registerDefault as _ignore } from '~/data/forms/defaultValues'; 
+import { metricsDefault } from '~/data/forms/defaultValues';
+import { validateMetrics } from '~/data/forms/validationRules';
+import { getHeightOptions, getWeightPickerConfig } from '~/data/helpers/metrics';
+import { addClientMeasurement, updateClient, appendDoneScreen } from '~/data/supabase/clientsHandler';
 
-import { getMetrics, getWeightPickerConfig } from '~/data/helpers';
 import { toastError, toastSuccess } from '~/data/helpers/toast';
 import useTranslation from '~/data/helpers/translation';
 import { useUserStore } from '~/data/store/userStore';
+import Loading from '~/components/Loading';
 
 import __base from '~/assets/styles/base';
+
+type MetricsValues = typeof metricsDefault;
+
+const API_BASE = 'https://indigo-backend-j5pl.onrender.com';
 
 export default function Metrics() {
   const navigation = useNavigation<any>();
   const t = useTranslation().metrics;
   const client = useUserStore((s) => s.client);
 
-  const { control, handleSubmit, setValue, getValues } = useForm<MetricsForm>({
-    resolver: zodResolver(metricsSchema),
-    defaultValues,
+  const { params } = useRoute<any>();
+  const isSettings = params?.mode === 'settings';
+  const [loading, setLoading] = useState<false|string>(false);
+
+  const { control, watch, reset, getValues, handleSubmit, setValue } = useForm<MetricsValues>({
+    defaultValues: metricsDefault,
     mode: 'onSubmit',
+    shouldUnregister: false,
   });
 
-  const onValid   = useCallback(buildSubmit({ navigation, t }), [navigation, t]);
-  const onInvalid = useCallback(handleInvalid(t), [t]);
+  const metricSystem = watch('metricSystem');
+  const heightOptions = useMemo(() => getHeightOptions(metricSystem ?? 'metric'), [metricSystem]);
+  const { min, max, unit } = getWeightPickerConfig(metricSystem ?? 'metric', t);
+  
+  const onSubmit = handleSubmit(async (values) => {
+    try {
+      await updateClient({
+        metricSystem: values.metricSystem,                     // 'metric' | 'imperial'
+        height: values.height,                                 // number
+        desiredWeight: values.desiredWeight ? Number(values.desiredWeight) : null,
+      });
+      const clientId = useUserStore.getState().client?.id;
+      if (!clientId) throw new Error('Missing client id');
+      await addClientMeasurement({
+        clientId,
+        weight: typeof values.weight === 'number' ? values.weight : Number(values.weight),
+        bodyfat: values.bodyfat ? Number(values.bodyfat) : null,
+        pictureFront: values.pictureFront ?? null,
+        pictureSide:  values.pictureSide  ?? null,
+        pictureBack:  values.pictureBack  ?? null,
+      });
+      toastSuccess(t.toastSavedTitle ?? 'Saved', t.toastSavedBody ?? 'Your measurements are saved.');
+      await appendDoneScreen('metrics');
+      navigation.navigate('Goals');
+    } catch (e) {
+      toastError(t.errors?.saveFailed ?? 'Could not save your measurements', String((e as Error)?.message ?? ''));
+    }
+  });
 
-  const metricSystem = useWatch({ control, name: 'metric_system' }) || 'kg/cm';
-  const heightOptions = useMemo(() => getMetrics(metricSystem), [metricSystem]);
-  const { min, max, unit } = getWeightPickerConfig(metricSystem as any, t);
-
-  const onSubmitPress = useCallback(() => {
-    const fn = handleSubmit(onValid, onInvalid);
-    fn();
-  }, [handleSubmit, onValid, onInvalid]);
-
-  const onCalculatePress = useCallback(() => {
-    const { image_front, image_side, image_back } = getValues();
-    if (!image_front || !image_side || !image_back) {
-      toastError('Missing photos', 'Please upload front, side, and back photos.');
+  const onCalculatePress = useCallback(async () => {
+    const { pictureFront, pictureSide, pictureBack } = getValues();
+    if (!pictureFront || !pictureSide || !pictureBack) {
+      toastError(t.photos.missingTitle ?? 'Missing photos', t.photos.missingBody ?? 'Please upload front, side, and back photos.');
       return;
     }
-    toastSuccess('AI Estimation', 'Doing AI Estimation now.');
-    setValue('fat_percentage', 45);
-  }, [getValues]);
 
-  const displayName = client?.first_name ?? '';
-  const avatarUrl = client?.avatar_url ?? undefined;
+    try {
+      setLoading('Doing AI Estimate: Checking front, side, back photo');
+      const res = await fetch(`${API_BASE}/estimate-bodyfat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ front: pictureFront, side: pictureSide, back: pictureBack }),
+      });
+      const data = await res.json();
+
+      if (data?.type === 'success') {
+        setLoading(`Estimated bodyfat: ${data.value}%`);
+        setValue('bodyfat', String(data.value));
+        toastSuccess('AI Estimation', `Estimated ${data.value}%`);
+        setTimeout(() => {
+          setLoading(false);
+        }, 500);
+      } else {
+        console.log(data);
+        setLoading(false);
+        toastError('AI Estimation', data?.value || 'Unable to estimate.');
+      }
+    } catch {
+      setLoading(false);
+      toastError('AI Estimation', 'Network error.');
+    }
+  }, [getValues, setValue, t]);
+
+  const displayName = client?.firstName ?? '';
+  const avatarUrl = client?.avatarUrl ?? undefined;
+
+  if(loading) return <Loading text={loading} />
 
   return (
     <StickyHeader title={t.screenTitle}>
-      <HeaderWithExtra back="Register" title={t.header.title.replace('{{name}}', displayName)} subtitle={t.header.subtitle} image={avatarUrl} />
-
-      {/* Units */}
-      <Text style={[__base.textBold, { marginTop: 8 }]}>{t.system.label}</Text>
-      <RHFToggle control={control} name="metric_system" options={['lbs/inches', 'kg/cm']} />
-
-      {/* Weight */}
-      <RHFHorizontalPicker control={control} name="weight" label={t.weight.label} unit={unit} min={min} max={max} />
-
-      {/* Goal */}
-      <RHFInput control={control} name="weight_goal" label={t.weightGoal.label} placeholder="" type="number" required />
-
-      {/* Height */}
-      <RHFDropdown control={control} name="height" label={t.height.label} required options={heightOptions} parseAsNumber />
-
-      {/* Photos */}
-      <Text style={[__base.textBold, { marginBottom: 6 }]}>Photos</Text>
+      <HeaderWithExtra title={(t.header.title || '').replace('{{name}}', displayName)} subtitle={t.header.subtitle} image={avatarUrl}/>
+      <FormToggle control={control} name="metricSystem" options={[{ label: t.system.imperial, value: 'imperial' },{ label: t.system.metric, value: 'metric' }]} rules={validateMetrics.metricSystem} />
+      <FormHorizontalPicker control={control} name="weight" label={t.weight.label} unit={unit} min={min} max={max} />
+      <FormInput control={control} name="desiredWeight" label={t.weightGoal.label} placeholder="" type="number" required rules={validateMetrics.desiredWeight} />
+      <FormDropdown control={control} name="height" label={t.height.label} required options={heightOptions} parseAsNumber rules={validateMetrics.height} />
+      <Text style={[__base.textBold, { marginBottom: 6 }]}>{t.photos.label ?? 'Photos'}</Text>
       <View style={[{ gap: 12, flexDirection: 'row', marginBottom: 20 }]}>
-        <RHFImageUpload control={control} name="image_front" filepath="clients" variant="square" size={75} label="Front" />
-        <RHFImageUpload control={control} name="image_side"  filepath="clients" variant="square" size={75} label="Side" />
-        <RHFImageUpload control={control} name="image_back"  filepath="clients" variant="square" size={75} label="Back" />
+        <FormImageUpload control={control} name="pictureFront" filepath="clients/progress" variant="square" size={75} label={t.photos.front ?? 'Front'} />
+        <FormImageUpload control={control} name="pictureSide"  filepath="clients/progress" variant="square" size={75} label={t.photos.side ?? 'Side'} />
+        <FormImageUpload control={control} name="pictureBack"  filepath="clients/progress" variant="square" size={75} label={t.photos.back ?? 'Back'} />
       </View>
-
-      {/* Fat percentage + calculator */}
       <View style={__base.rowGap}>
         <View style={{ flex: 1, minWidth: 0 }}>
-          <RHFInput control={control} name="fat_percentage" label={t.fat.label} placeholder="%" type="number" />
+          <FormInput control={control} name="bodyfat" label={t.fat.label} placeholder="%" type="number" rules={validateMetrics.bodyfat} />
         </View>
-
         <View style={{ marginBottom: 15, flexShrink: 0, marginLeft: 10 }}>
           <CustomButton title={t.ctaCalc} backgroundColor="#FFF" textColor="#000" onPress={onCalculatePress} />
         </View>
       </View>
-
-      {/* Submit  */}
-      <CustomButton title={t.ctaNext} backgroundColor="#000" textColor="#FFF" onPress={onSubmitPress} />
+      <CustomButton title={(isSettings ? 'Save & Close' : t.ctaNext)} backgroundColor="#000" textColor="#FFF" onPress={onSubmit} />
     </StickyHeader>
   );
 }

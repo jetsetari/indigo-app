@@ -1,160 +1,267 @@
-// src/data/supabase/clientsHandler.ts
-import { getSupabase } from './connection';
-import type { ClientRow, ClientUpsertInput, ClientMetricsRow, ClientGoalsRow } from '~/data/types';
+import { supabase } from '../supabase/connection';
+import { camelToSnake, snakeToCamel } from '../helpers';
+import { useUserStore } from '../store/userStore';
+import { MeasurementRow } from '../types';
+import { IntakeKey } from './authHandler';
 
-// helper you already had:
-const toDateString = (d?: Date | null) =>
-  d ? d.toISOString().slice(0,10) : null;
+export function prepareClientRow(input: any) {
+  const {
+    password, confirmPassword, agreed, terms, user_id, userId,
+    ...rest
+  } = input ?? {};
 
-export async function getClientByEmail(email: string) {
-  const { data } = await getSupabase()
-    .from('clients')
-    .select('*')
-    .eq('email', email.trim().toLowerCase())
-    .maybeSingle();
-  return data as ClientRow | null;
+  const avatarUrl =
+    (rest as any).avatarUrl ?? (rest as any).avatar_url ?? null;
+  if (avatarUrl !== undefined) {
+    (rest as any).avatarUrl = avatarUrl;         // ensure one source
+  }
+
+  if (rest?.dob instanceof Date) {
+    rest.dob = rest.dob.toISOString().slice(0, 10);
+  } else if (typeof rest?.dob === 'string' && /^\d{4}-\d{2}-\d{2}/.test(rest.dob)) {
+    rest.dob = rest.dob.slice(0, 10);
+  }
+  const row = camelToSnake(rest);
+  if ('avatar_url' in row || 'avatarUrl' in (input ?? {})) {
+    row.avatar_url = avatarUrl ?? null;
+  }
+
+  return row;
 }
 
-export async function ensureClientByEmail(input: ClientUpsertInput): Promise<ClientRow> {
-  const supabase = getSupabase();
-  const email = input.email.trim().toLowerCase();
-  const patch = {
-    email,
-    first_name: (input.first_name ?? '').toString(), // NOT NULL safe
-    last_name : input.last_name ?? null,
-    dob       : toDateString(input.dob),
-    gender    : input.gender ?? null,
-    avatar_url: input.avatar_url ?? null,
-    language  : input.language ?? 'en',
+function stripUndefined<T extends Record<string, any>>(obj: T): Partial<T> {
+  return Object.fromEntries(Object.entries(obj).filter(([, v]) => v !== undefined)) as Partial<T>;
+}
+
+export async function fetchClientByEmail(email: string) {
+  const { data, error } = await supabase.from('clients').select('*').eq('email', email).single();
+  if (error) throw error;
+  return snakeToCamel(data);
+}
+
+export async function fetchClientByUserId(userId: string) {
+  const { data, error } = await supabase.from('clients').select('*').eq('user_id', userId).single();
+  if (error) throw error;
+  return snakeToCamel(data);
+}
+
+export async function saveClient(data: any) {
+  if (!data?.email) throw new Error('email is required');
+  const row = prepareClientRow(data);
+
+  const { data: existing, error: selErr } = await supabase
+    .from('clients').select('id').eq('email', data.email).maybeSingle();
+  if (selErr) throw selErr;
+
+  if (existing?.id) {
+    const { error } = await supabase.from('clients').update(row).eq('id', existing.id);
+    if (error) throw error;
+  } else {
+    const { error } = await supabase.from('clients').insert(row);
+    if (error) throw error;
+  }
+
+  const client = await fetchClientByEmail(data.email);
+  useUserStore.getState().setClient?.(client);
+  return client;
+}
+
+
+
+export async function updateClient(patch: any) {
+  const store = useUserStore.getState();
+  const email = patch?.email ?? store?.client?.email;
+  if (!email) throw new Error('No email available to update client');
+
+  // Build row from your existing mapper
+  const built = prepareClientRow(patch);
+
+  // 1) Strip undefined so we never send them to Supabase
+  const row = stripUndefined(built);
+
+  // 2) Protect avatar_url: only include it if caller explicitly provided it in patch
+  if (!Object.prototype.hasOwnProperty.call(patch, 'avatar_url')) {
+    delete (row as any).avatar_url;
+  }
+  // (If you pass avatar_url: null in patch, it WILL clear it in DB, by design.)
+
+  const { data: existing, error: selErr } = await supabase
+    .from('clients')
+    .select('id')
+    .eq('email', email)
+    .maybeSingle();
+  if (selErr) throw selErr;
+  if (!existing?.id) throw new Error('Client not found for update');
+
+  const { error } = await supabase.from('clients').update(row).eq('id', existing.id);
+  if (error) throw error;
+
+  const client = await fetchClientByEmail(email);
+  store.setClient?.(client);
+  return client;
+}
+
+export async function appendDoneScreen(key: 'metrics'|'goals'|'level'|'eatinghabbits'|'supplements') {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user?.email) throw new Error('No user');
+
+  const { data: row, error: selErr } = await supabase
+    .from('clients')
+    .select('done_screens')
+    .eq('email', user.email)
+    .single();
+  if (selErr) {
+    console.log(selErr);
+    throw selErr;
+  }
+
+  const next = Array.from(new Set([...(row?.done_screens ?? []), key]));
+  const { error: updErr } = await supabase
+    .from('clients')
+    .update({ done_screens: next })
+    .eq('email', user.email);
+  if (updErr){
+    console.log(updErr);
+    throw updErr;
+  } 
+}
+type MeasurementType = 'ai' | 'manual';
+export async function addClientMeasurement(input: MeasurementRow) {
+  const today = new Date().toISOString().slice(0, 10);
+  const row = camelToSnake({
+    ...input,
+    date: input.date ?? today,
+  });
+
+  const { error } = await supabase.from('client_measurements').insert(row);
+  if (error) throw error;
+}
+
+
+export async function addClientMeasurementDate({
+  clientId,
+  weight,
+  bodyfat,
+  pictureFront,
+  pictureSide,
+  pictureBack,
+  dateISO,                      // YYYY-MM-DD (optional, defaults today)
+  measurementType = 'manual',   // 'ai' | 'manual'
+}: {
+  clientId: number;
+  weight?: number | string | null;
+  bodyfat?: number | string | null;
+  pictureFront?: string | null;
+  pictureSide?: string | null;
+  pictureBack?: string | null;
+  dateISO?: string;
+  measurementType?: 'ai' | 'manual';
+}) {
+  const date = dateISO ?? new Date().toISOString().slice(0, 10);
+  const toNum = (v: any) =>
+    v === '' || v === undefined || v === null ? null : Number(v);
+
+  // 1) See if a row already exists for (client_id, date)
+  const { data: existing, error: selErr } = await supabase
+    .from('client_measurements')
+    .select('id, checklist')
+    .eq('client_id', clientId)
+    .eq('date', date)
+    .maybeSingle();
+  if (selErr) throw selErr;
+
+  const payload = {
+    client_id: clientId,
+    date,
+    weight: toNum(weight),
+    bodyfat: toNum(bodyfat),
+    picture_front: pictureFront ?? null,
+    picture_side: pictureSide ?? null,
+    picture_back: pictureBack ?? null,
+    measurement_type: measurementType,
   };
 
-  const existing = await getClientByEmail(email);
-  if (existing?.id) {
-    const { error } = await supabase.from('clients').update(patch).eq('id', existing.id);
+  if (existing) {
+    // 2) UPDATE existing row (keep checklist as-is)
+    const { error } = await supabase
+      .from('client_measurements')
+      .update(payload)
+      .eq('id', existing.id);
     if (error) throw error;
-    return { ...existing, ...patch } as ClientRow;
+    return existing.id;
+  } else {
+    // 3) INSERT new row
+    const { data, error } = await supabase
+      .from('client_measurements')
+      .insert(payload)
+      .select('id')
+      .single();
+    if (error) throw error;
+    return data.id;
   }
-
-  const { error } = await supabase.from('clients').insert(patch);
-  if (error && (error as any).code !== '23505') throw error; // unique race
-  const again = await getClientByEmail(email);
-  if (!again) throw new Error('Client upsert failed');
-  return again;
 }
 
-/** Metrics */
-export async function createClientMetrics(input: Omit<ClientMetricsRow, 'id'>) {
-  const { error } = await getSupabase().from('client_metrics').insert(input);
-  if (error) {
-    console.warn('client_metrics insert error:', error);
-    throw error;
+export async function getMeasurementByDate(clientId: number, isoDate: string) {
+  const { data, error } = await supabase
+    .from('client_measurements')
+    .select('id, date, weight, bodyfat, picture_front, picture_side, picture_back, measurement_type, checklist')
+    .eq('client_id', clientId)
+    .eq('date', isoDate)
+    .maybeSingle(); // returns null if none
+
+  if (error) throw error;
+  return data; // may be null
+}
+
+
+export type WeekRow = {
+  date: string; weight: number|null; bodyfat: number|null;
+  picture_front: string|null; picture_side: string|null; picture_back: string|null;
+};
+
+export async function getWeekMeasurementRows(clientId: number, weekStartISO: string): Promise<WeekRow[]> {
+  const start = new Date(weekStartISO);
+  const end = new Date(start); end.setDate(start.getDate() + 6);
+  const toISO = (d: Date) => d.toISOString().slice(0,10);
+
+  const { data, error } = await supabase
+    .from('client_measurements')
+    .select('date, weight, bodyfat, picture_front, picture_side, picture_back')
+    .eq('client_id', clientId)
+    .gte('date', toISO(start))
+    .lte('date', toISO(end));
+
+  if (error) return [];
+  return (data ?? []) as WeekRow[];
+}
+
+export type DayDatum = { date: string; weight: number | null };
+
+export async function getWeekMeasurements(clientId: number, weekStartISO: string) {
+  const start = new Date(weekStartISO);
+  const end = new Date(start); end.setDate(start.getDate() + 6);
+  const toISO = (d: Date) => d.toISOString().slice(0,10);
+
+  const { data, error } = await supabase
+    .from('client_measurements')
+    .select('date, weight')
+    .eq('client_id', clientId)
+    .gte('date', toISO(start))
+    .lte('date', toISO(end));
+  if (error) return [];
+
+  // index by yyyy-mm-dd
+  const byDate = Object.fromEntries((data ?? []).map(r => [r.date.slice(0,10), r.weight as number | null]));
+
+  // 7 days, carry last known forward
+  const out: DayDatum[] = [];
+  let last: number | null = null;
+  for (let i=0;i<7;i++){
+    const d = new Date(start); d.setDate(start.getDate()+i);
+    const key = toISO(d);
+    const w = (byDate[key] ?? null);
+    if (w != null) last = w;
+    out.push({ date: key, weight: w ?? last });
   }
-  return true;
-}
-
-/** Goals */
-export async function upsertClientGoals(input: {
-  client_id: number;
-  weight_goal: string | null;   // single slug or null
-}) {
-  const { error } = await getSupabase()
-    .from('client_goals')
-    .upsert(
-      { client_id: input.client_id, weight_goal: input.weight_goal },
-      { onConflict: 'client_id' }
-    );
-  if (error) throw error;
-}
-
-export async function setClientPerformanceGoals(client_id: number, slugs: string[]) {
-  const supabase = getSupabase();
-  let { error } = await supabase.from('client_performance_goals').delete().eq('client_id', client_id);
-  if (error) throw error;
-  if (slugs.length === 0) return true;
-  const rows = slugs.map((performance_slug) => ({ client_id, performance_slug }));
-  ({ error } = await supabase.from('client_performance_goals').insert(rows));
-  if (error) throw error;
-  return true;
-}
-
-export async function setClientSportTraining(client_id: number, slugs: string[]) {
-  const supabase = getSupabase();
-  let { error } = await supabase.from('client_sport_training').delete().eq('client_id', client_id);
-  if (error) throw error;
-  if (slugs.length === 0) return true;
-  const rows = slugs.map((sport_slug) => ({ client_id, sport_slug }));
-  ({ error } = await supabase.from('client_sport_training').insert(rows));
-  if (error) throw error;
-  return true;
-}
-
-
-// Patch (upsert) the single client_goals row by client_id
-export async function upsertClientGoalsPatch({
-  client_id,
-  patch,
-}: {
-  client_id: number;
-  patch: Partial<{
-    training_days: string[];
-    training_history: string | null;
-    training_hours: number | null;
-    notes: string | null;
-  }>;
-}) {
-  const supabase = getSupabase();
-  // Fallback if you haven’t added UNIQUE(client_id) on client_goals:
-  // delete-then-insert ensures single row semantics without read policies.
-  await supabase.from('client_goals').delete().eq('client_id', client_id);
-  const { error } = await supabase
-    .from('client_goals')
-    .insert({ client_id, ...patch });
-  if (error) throw error;
-}
-
-// Replace rows in client_group_experience for this client
-export async function setClientGroupExperience(client_id: number, slugs: string[]) {
-  const supabase = getSupabase();
-  // delete existing
-  const del = await supabase.from('client_group_experience').delete().eq('client_id', client_id);
-  if (del.error) throw del.error;
-
-  if (!slugs?.length) return;
-
-  const rows = slugs.map((experience_slug) => ({ client_id, experience_slug }));
-  const ins = await supabase.from('client_group_experience').insert(rows);
-  if (ins.error) throw ins.error;
-}
-
-export async function upsertClientNutritionPatch({
-  client_id,
-  patch,
-}: {
-  client_id: number;
-  patch: Partial<{
-    interested_in_nutrition: boolean;
-    eating_habits: string | null;
-    meals_per_day: number | null;
-    daily_kcal_intake: number | null;
-    // (allergies, supplements_extra, injuries saved on later screens)
-  }>;
-}) {
-  // delete-then-insert to avoid needing UNIQUE(client_id) and SELECT policies
-  const supabase = getSupabase();
-  await supabase.from('client_nutrition').delete().eq('client_id', client_id);
-  const { error } = await supabase.from('client_nutrition').insert({ client_id, ...patch });
-  if (error) throw error;
-}
-
-export async function setClientSupplements(client_id: number, slugs: string[]) {
-  // delete existing (write-only pattern; no SELECT required)
-  const supabase = getSupabase();
-  const del = await supabase.from('client_supplements').delete().eq('client_id', client_id);
-  if (del.error) throw del.error;
-
-  if (!slugs?.length) return;
-
-  const rows = slugs.map((supplement_slug) => ({ client_id, supplement_slug }));
-  const ins = await supabase.from('client_supplements').insert(rows);
-  if (ins.error) throw ins.error;
+  return out;
 }

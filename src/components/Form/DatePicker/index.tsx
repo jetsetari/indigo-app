@@ -1,107 +1,120 @@
-// src/components/Form/DatePicker.tsx
-
-import React, { useState } from 'react';
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  Modal,
-  Platform,
-  Alert,
-} from 'react-native';
-import DateTimePicker from '@react-native-community/datetimepicker';
+// src/components/Form/FormDatePicker.tsx
+import React, { useMemo, useState } from 'react';
+import { Platform, View, Text, TouchableOpacity, Modal } from 'react-native';
+import { Controller, type FieldValues, type Path } from 'react-hook-form';
 import { Feather } from '@expo/vector-icons';
-import { styles } from './DatePickerStyle';
+import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 
-type Props = {
+import { runDateValidators, type DateRule } from '../validation';
+import { styles } from './DatePickerStyle';
+import __base from '~/assets/styles/base';
+
+export type FormDatePickerProps<T extends FieldValues = FieldValues> = {
+  control: unknown; // RHF Control<any>
+  name: Path<T>;
   label: string;
-  value: Date | null;
-  onChange: (date: Date) => void;
+  placeholder?: string;
   required?: boolean;
-  /** Optional explanation text; if provided, shows an ℹ️ icon */
   info?: string;
+  rules?: DateRule[];
+  minimumDate?: Date;
+  maximumDate?: Date;
+  displayFormat?: (date: Date) => string;
 };
 
-export default function FormDatePicker({
+export default function FormDatePicker<T extends FieldValues = FieldValues>({
+  control,
+  name,
   label,
-  value,
-  onChange,
-  required = false,
+  placeholder,
+  required,
   info,
-}: Props) {
-  const [show, setShow] = useState(false);
-  const [tempDate, setTempDate] = useState<Date>(value || new Date());
+  rules = [],
+  minimumDate,
+  maximumDate,
+  displayFormat,
+}: FormDatePickerProps<T>) {
+  const [focused, setFocused] = useState(false);
+  const [iosOpen, setIosOpen] = useState(false);
+  const isIOS = Platform.OS === 'ios';
+  const [touched, setTouched] = useState(false);
 
-  const handleChange = (_event: any, selectedDate?: Date) => {
-    if (selectedDate) setTempDate(selectedDate);
-  };
-  const confirmDate = () => {
-    onChange(tempDate);
-    setShow(false);
-  };
+  const format = (d?: Date | null) =>
+    d ? (displayFormat ? displayFormat(d) : d.toLocaleDateString()) : (placeholder || label);
 
-  const displayDate = value
-    ? value.toLocaleDateString('en-GB')
-    : 'Select a date';
+  const open = () => (isIOS ? setIosOpen(true) : setFocused(f => !f));
+  const close = () => (isIOS ? setIosOpen(false) : setFocused(false));
+  const onPickerChange = (onChange: (date: Date | null) => void) => (e: DateTimePickerEvent, d?: Date) => {
+    if (e.type === 'set') onChange(d ?? null);
+    if (!isIOS) setFocused(false);
+  };
 
   return (
-    <View style={{ marginBottom: 15 }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-        <Text style={styles.label}>
-          {label}
-          {required && <Text style={{ color: 'red' }}> *</Text>}
-        </Text>
-        {info && (
-          <TouchableOpacity
-            onPress={() => Alert.alert(label, info)}
-            style={{ marginLeft: 6, marginBottom: 5 }}
-          >
-            <Feather name="info" size={18} color="#FFF" />
-          </TouchableOpacity>
-        )}
-      </View>
+    <Controller
+      // @ts-expect-error loosened control typing
+      control={control}
+      name={name}
+      rules={{ validate: (v: unknown) => runDateValidators((v as Date) ?? null, rules, !!required) }}
+      render={({ field: { value, onChange }, fieldState: { error } }) => {
+        const errorMsg = useMemo(() => {
+          if (!touched) return '';
+          const res = runDateValidators((value as Date) ?? null, rules, !!required);
+          return res === true ? '' : (res as string);
+        }, [value, rules, required, touched]);
 
-      <TouchableOpacity
-        activeOpacity={0.9}
-        style={styles.input}
-        onPress={() => setShow(true)}
-      >
-        <Text style={styles.dateText}>{displayDate}</Text>
-        <Feather name="calendar" size={18} color="#FFF" />
-      </TouchableOpacity>
-
-      {Platform.OS === 'android' && show && (
-        <DateTimePicker
-          value={value || new Date()}
-          mode="date"
-          display="default"
-          onChange={(e, selected) => {
-            setShow(false);
-            if (selected) onChange(selected);
-          }}
-          locale="en-GB"
-        />
-      )}
-
-      {Platform.OS === 'ios' && (
-        <Modal transparent animationType="fade" visible={show}>
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalContainer}>
-              <DateTimePicker
-                value={tempDate}
-                mode="date"
-                display="spinner"
-                onChange={handleChange}
-                locale="en-GB"
-                style={styles.picker}
-              />
-              <TouchableOpacity style={styles.modalClose} onPress={confirmDate}>
-                <Text style={styles.modalCloseText}>Done</Text>
-              </TouchableOpacity>
+        return (
+          <View style={__base.inputWrapper}>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <Text style={__base.label}>
+                {label}
+                {required && <Text style={__base.asterix}> *</Text>}
+              </Text>
+              {!!info && (
+                <TouchableOpacity onPress={() => alert(info)} style={__base.info}>
+                  <Feather name="info" size={18} color={'#888'} />
+                </TouchableOpacity>
+              )}
             </View>
+            <TouchableOpacity activeOpacity={0.9} style={styles.input} onPress={() => { open(); setTouched(true); }}>
+              <Text style={styles.dateText}>{format((value as Date) ?? null)}</Text>
+              <Feather name="calendar" size={18} color="#FFF" />
+            </TouchableOpacity>
+            {!isIOS && focused && (
+              <DateTimePicker
+                mode="date"
+                display="calendar"
+                value={(value as Date) ?? new Date()}
+                onChange={onPickerChange(onChange)}
+                minimumDate={minimumDate}
+                maximumDate={maximumDate}
+              />
+            )}
+            {isIOS && (
+              <Modal visible={iosOpen} transparent animationType="none" onRequestClose={close}>
+                <View style={styles.modalOverlay}>
+                  <View style={styles.modalContainer}>
+                    <DateTimePicker
+                      mode="date"
+                      display="spinner"
+                      value={(value as Date) ?? new Date()}
+                      onChange={onPickerChange(onChange)}
+                      minimumDate={minimumDate}
+                      maximumDate={maximumDate}
+                    />
+                    <TouchableOpacity style={styles.modalClose} onPress={close}>
+                      <Text style={styles.modalCloseText}>Done</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </Modal>
+            )}
+
+            {!!(errorMsg || error?.message) && (
+              <Text style={[__base.errorMsg, { marginTop: 4 }]}>{String(errorMsg || error?.message)}</Text>
+            )}
           </View>
-        </Modal>
-      )}
-    </View>
+        );
+      }}
+    />
   );
 }

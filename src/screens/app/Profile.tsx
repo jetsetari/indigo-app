@@ -1,117 +1,85 @@
-import { View, Text, TouchableOpacity } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
-import HeaderImage from '~/components/Layout/HeaderImage';
+import { View, Text } from 'react-native';
+import { useState } from 'react';
 import StickyHeader from '~/components/Layout/StickyHeader';
 import __base from '~/assets/styles/base';
-import HeaderText from '~/components/Layout/HeaderText';
 import BottomTabs from '~/components/Layout/BottomTabs';
-import CustomIcon from '~/components/Layout/CustomIcon';
 import { styles } from '~/assets/styles/screens/StartStyles';
-import { Badge } from '~/components/Layout/Badge';
 import SettingsButton from '~/components/Buttons/SettingsButton';
 import { useUserStore } from '~/data/store/userStore';
 import HeaderWithExtra from '~/components/Layout/HeaderWithExtra';
+import { useNavigation } from '@react-navigation/native';
+import { logout } from '~/data/supabase/authHandler';
+import HeaderClose from '~/components/Layout/HeaderClose';
 
-export default function Stats() {
-  const navigation = useNavigation<any>();
+
+import ProfileSettings from './Settings/Profile';
+import Metrics from './Settings/Metrics';
+import EatingHabbits from './Settings/EatingHabbits';
+import Goals from './Settings/Goals';
+import Level from './Settings/Level';
+import Supplements from './Settings/Supplements';
+
+import dayjs from 'dayjs';
+
+export default function Profile() {
   const client = useUserStore(s => s.client);
-  const displayName = client?.first_name ?? '';
-  const avatarUrl = client?.avatar_url ?? undefined;
+  const displayName = (client?.firstName+' '+client?.lastName) || '';
+  const avatarUrl = client?.avatarUrl ?? undefined;
+  const navigation = useNavigation<any>();
+  const [open, setOpen] = useState(false);
+  const [title, setTitle] = useState<string>('Settings');
+  const [openChild, setOpenChild] = useState<React.ReactElement>(<></>);
+
+  const openSettings = (type: string) => {
+    switch (type) {
+      case 'profile':      setTitle('Profile');      setOpenChild(<ProfileSettings />); break;
+      case 'metrics':      setTitle('Metrics');      setOpenChild(<Metrics />); break;
+      case 'eatinghabbits':setTitle('Eating Habits');setOpenChild(<EatingHabbits />); break;
+      case 'goals':        setTitle('Goals');        setOpenChild(<Goals />); break;
+      case 'level':        setTitle('Level');        setOpenChild(<Level />); break;
+      case 'supplements':  setTitle('Supplements');  setOpenChild(<Supplements />); break;
+    }
+    setOpen(true);
+  };
+
+
+  if(open){
+    return (<StickyHeader title="Settings" noSticky={true} padded={false}>
+      <View style={[__base.paddingHorizontal, { paddingBottom: 0, paddingTop: 70 }]}>
+        <HeaderClose onClose={() => setOpen(false)} title={title} subtitle={"General Settings"}/>
+        { openChild }
+      </View>
+    </StickyHeader>)
+  }
+
+
 
   return (
     <>
       <StickyHeader title="Home" noSticky={true}>
-        <HeaderWithExtra title={client?.first_name+' '+client?.last_name} subtitle="Member since August 2025" image={avatarUrl} />
+        <HeaderWithExtra title={`${displayName}`} subtitle={`Member since ${dayjs(client?.createdAt).format('DD-MM hh:mm:ss')}`} image={avatarUrl} />
 
-
-        {/* Achievements */}
-        {/*<View style={styles.section}>
-          <View style={styles.rowBetween}>
-            <Text style={[__base.textBold]}>Latest Achievements</Text>
-            <TouchableOpacity><Text style={__base.link}>See All</Text></TouchableOpacity>
-          </View>
-          <View style={__base.infoBox}>
-            <View style={__base.infoBoxColumn}>
-              <View style={__base.infoBoxIcon}>
-                <Badge size={60} border="#F97316" background="#EA580C" icon="heart" />
-              </View>
-              <Text style={__base.infoBoxValue}>Consistency</Text>
-              <Text style={__base.infoBoxLabel}>Level 1</Text>
-            </View>
-            <View style={__base.infoBoxColumn}>
-              <View style={__base.infoBoxIcon}>
-                <Badge size={60} border="#A855F7" background="#9333EA" icon="activity" />
-              </View>
-              <Text style={__base.infoBoxValue}>Progress</Text>
-              <Text style={__base.infoBoxLabel}>Level 1</Text>
-            </View>
-            <View style={__base.infoBoxColumn}>
-              <View style={__base.infoBoxIcon}>
-                <Badge size={60} border="#84CC16" background="#65A30D" icon="heart" />
-              </View>
-              <Text style={__base.infoBoxValue}>Workout</Text>
-              <Text style={__base.infoBoxLabel}>Level 1</Text>
-            </View>
-          </View>
-        </View>*/}
-         {/* General Settings */}
+        {/* General Settings */}
         <View style={styles.section}>
           <Text style={[__base.textBold, { marginBottom: 10 }]}>General Settings</Text>
-          <SettingsButton
-            icon="user"
-            title="Profile Settings"
-            onPress={() => alert('ProfileSettings')}
-          />
-          <SettingsButton
-            icon="smartphone"
-            title="Apple Health"
-            onPress={() => alert('AppleHealth')}
-          />
-          <SettingsButton
-            icon="credit-card"
-            title="Subscription & Billing"
-            onPress={() => alert('Billing')}
-          />
-          <SettingsButton
-            icon="sliders"
-            title="Units & Metrics"
-            onPress={() => alert('UnitsMetrics')}
-          />
-        </View>
-
-        {/* Notifications */}
-        <View style={styles.section}>
-          <Text style={[__base.textBold, { marginBottom: 10 }]}>Notifications</Text>
-          <SettingsButton
-            icon="bell"
-            title="General Notification"
-            onPress={() => alert('GeneralNotification')}
-          />
-          <SettingsButton
-            icon="mail"
-            title="Email Notification"
-            onPress={() => alert('EmailNotification')}
-          />
+          <SettingsButton icon="user" title="Profile Settings" onPress={() => openSettings('profile')} />
+          <SettingsButton icon="cloud-lightning" title="Metrics" onPress={() => openSettings('metrics')} />
+          <SettingsButton icon="aperture" title="Eating Habits" onPress={() => openSettings('eatinghabbits')} />
+          <SettingsButton icon="feather" title="Goals" onPress={() => openSettings('goals')} />
+          <SettingsButton icon="flag" title="Level" onPress={() => openSettings('level')} />
+          <SettingsButton icon="box" title="Supplements" onPress={() => openSettings('supplements')} />
         </View>
 
         {/* Security & Privacy */}
         <View style={styles.section}>
-          <Text style={[__base.textBold, { marginBottom: 10 }]}>Security & Privacy</Text>
-          <SettingsButton
-            icon="lock"
-            title="Change Password"
-            onPress={() => alert('ChangePassword')}
-          />
+          <Text style={[__base.textBold, { marginBottom: 10 }]}>Account</Text>
+          <SettingsButton icon="log-out" title="Log out" onPress={() => logout(navigation)} />
         </View>
 
         {/* Danger Zone */}
         <View style={styles.section}>
           <Text style={[__base.textBold, { marginBottom: 10 }]}>Danger Zone</Text>
-          <SettingsButton
-            icon="trash-2"
-            title="Delete Account"
-            onPress={() => alert('DeleteAccount')}
-          />
+          <SettingsButton icon="trash-2" title="Delete Account" onPress={() => alert('DeleteAccount')} />
         </View>
       </StickyHeader>
       <BottomTabs />

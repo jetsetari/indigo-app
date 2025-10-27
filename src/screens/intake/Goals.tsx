@@ -1,82 +1,123 @@
 // src/screens/intake/Goals.tsx
-import { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigation } from '@react-navigation/native';
-import { useUserStore } from '~/data/store/userStore';
+import { useForm } from 'react-hook-form';
 
-import CustomButton from '~/components/Buttons/CustomButton';
 import StickyHeader from '~/components/Layout/StickyHeader';
-import MultiSelectSection from '~/components/Form/MultiSelectSection';
 import HeaderWithExtra from '~/components/Layout/HeaderWithExtra';
+import CustomButton from '~/components/Buttons/CustomButton';
 import Loading from '~/components/Loading';
+import { FormSelectMulti } from '~/components/Form';
+import { useRoute } from '@react-navigation/native';
 
-import { getAllGoalsOptions, type GoalOption } from '~/data/supabase/optionsDataHandler';
-import { upsertClientGoals, setClientPerformanceGoals, setClientSportTraining } from '~/data/supabase/clientsHandler'; // ← same helpers you used for Metrics flow
+import { useUserStore } from '~/data/store/userStore';
+import useTranslation from '~/data/helpers/translation';
 import { toastSuccess, toastError } from '~/data/helpers/toast';
 
-import __base from '~/assets/styles/base';
+import { getAllGoalsOptions, type GoalOption } from '~/data/supabase/optionsDataHandler';
+import { updateClient, appendDoneScreen } from '~/data/supabase/clientsHandler';
+import { ClientGoalsRow } from '~/data/types';
 
 export default function Goals() {
   const navigation = useNavigation<any>();
+  const t = useTranslation().goals;
   const client = useUserStore((s) => s.client);
-  const avatarUrl = client?.avatar_url ?? undefined;
+  const avatarUrl = client?.avatarUrl ?? undefined;
+  const { params } = useRoute<any>();
+  const isSettings = params?.mode === 'settings';
 
+  const [loading, setLoading] = useState(true);
   const [weightOptions, setWeightOptions] = useState<GoalOption[]>([]);
   const [performanceOptions, setPerformanceOptions] = useState<GoalOption[]>([]);
   const [sportTrainingOptions, setSportTrainingOptions] = useState<GoalOption[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
 
-  const [weightGoals, setWeightGoals] = useState<string[]>([]);
-  const [performanceGoals, setPerformanceGoals] = useState<string[]>([]);
-  const [sportGoals, setSportGoals] = useState<string[]>([]);
+  const { control, handleSubmit, formState: { isSubmitting } } = useForm<ClientGoalsRow>({
+    defaultValues: { weightGoals: [], performanceGoals: [], sportGoals: []},
+    mode: 'onSubmit',
+  });
 
   useEffect(() => {
     let alive = true;
     (async () => {
-      setLoading(true);
-      const { weight, performance, sport } = await getAllGoalsOptions();
-      if (!alive) return;
-      setWeightOptions(weight);
-      setPerformanceOptions(performance);
-      setSportTrainingOptions(sport);
-      setLoading(false);
+      try {
+        setLoading(true);
+        const { weight, performance, sport } = await getAllGoalsOptions();
+        console.log(weight, performance, sport);
+        if (!alive) return;
+        setWeightOptions(weight);
+        setPerformanceOptions(performance);
+        setSportTrainingOptions(sport);
+      } catch (e) {
+        toastError(t?.loadErrorTitle ?? 'Error', t?.loadErrorBody ?? 'Failed to load options.');
+      } finally {
+        if (alive) setLoading(false);
+      }
     })();
     return () => { alive = false; };
-  }, []);
+  }, [t]);
 
-  const onNext = useCallback(async () => {
-    if (!client?.id) return;
+  const onSubmit = useCallback(handleSubmit(async (values) => {
     try {
-      setLoading(true);
+      const weight = values.weightGoals?.[0] ?? null;
+      const performance = values.performanceGoals?.[0] ?? null;
+      const sport = values.sportGoals?.[0] ?? null;
 
-      const primaryWeight = weightGoals[0] ?? null; // take the first selected
-      await upsertClientGoals({
-        client_id: client.id,
-        weight_goal: primaryWeight,
+      await updateClient({
+        weightGoals: values.weightGoals?.length ? values.weightGoals : null,
+        performanceGoals: values.performanceGoals?.length ? values.performanceGoals : null,
+        sportGoals: values.sportGoals?.length ? values.sportGoals : null,
       });
 
-      await setClientPerformanceGoals(client.id, performanceGoals);
-      await setClientSportTraining(client.id, sportGoals);
-
-      toastSuccess('Saved', 'Your goals have been saved successfully.');
+      toastSuccess(t?.savedTitle ?? 'Saved', t?.savedBody ?? 'Your goals have been saved.');
+      await appendDoneScreen('goals');
       navigation.navigate('Level');
     } catch (e: any) {
-      console.log(e);
-      toastError('Save failed', e?.message ?? 'Please try again.');
-    } finally {
-      setLoading(false);
+      toastError(t?.saveFailedTitle ?? 'Save failed', e?.message ?? t?.saveFailedBody ?? 'Please try again.');
     }
-  }, [client?.id, weightGoals, performanceGoals, sportGoals, navigation]);
+  }), [navigation, t]);
 
   if (loading) return <Loading />;
 
   return (
-    <StickyHeader title="Goals">
-      <HeaderWithExtra back="Metrics" title={'Let’s define your goals'} subtitle="Choose what applies." image={avatarUrl} />
-      <MultiSelectSection icon="💪" title="Weight Goals" options={weightOptions} selected={weightGoals} onChange={setWeightGoals} />
-      <MultiSelectSection icon="🔥" title="Performance" options={performanceOptions} selected={performanceGoals} onChange={setPerformanceGoals} />
-      <MultiSelectSection icon="🏃‍♂️" title="Sport specific training" options={sportTrainingOptions} selected={sportGoals} onChange={setSportGoals} />
-      <CustomButton title={saving ? 'Saving…' : 'Next'} backgroundColor="#000" textColor="#FFF" onPress={onNext} disabled={saving} />
+    <StickyHeader title={t?.screenTitle ?? 'Goals'}>
+      <HeaderWithExtra
+        //back={isSettings ? 'Profile' : 'Metrics'}
+        title={"Let’s define your goals"}
+        subtitle={t?.header.subtitle ?? 'Choose what applies.'}
+        image={avatarUrl}
+      />
+
+      <FormSelectMulti
+        control={control}
+        name="weightGoals"
+        title={t?.sections?.weight ?? 'Weight Goals'}
+        icon="💪"
+        options={weightOptions}
+      />
+
+      <FormSelectMulti
+        control={control}
+        name="performanceGoals"
+        title={t?.sections?.performance ?? 'Performance'}
+        icon="🔥"
+        options={performanceOptions}
+      />
+
+      <FormSelectMulti
+        control={control}
+        name="sportGoals"
+        title={t?.sections?.sport ?? 'Sport specific training'}
+        icon="🏃‍♂️"
+        options={sportTrainingOptions}
+      />
+
+      <CustomButton
+        title={isSubmitting ? (t?.ctaSaving ?? 'Saving…') : (t?.ctaNext ?? 'Next')}
+        backgroundColor="#000"
+        textColor="#FFF"
+        onPress={onSubmit}
+        disabled={isSubmitting}
+      />
     </StickyHeader>
   );
 }

@@ -72,7 +72,7 @@ export default function TimerBar({
           style={[styles.bar, { height: animatedHeight }]}
         />
       </View>
-      <Text style={styles.reps}>{repsLeft} Left</Text>
+      {/*<Text style={styles.reps}>{repsLeft} Left</Text>*/}
     </View>
   );
 }
@@ -82,11 +82,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginVertical: 20,
     position: 'absolute',
-    right: 20,
-    bottom: 80,
+    right: 10,
+    bottom: 100,
   },
   barContainer: {
-    width: 40,
+    width: 30,
     height: BAR_CONTAINER_HEIGHT,
     borderWidth: 1,
     borderColor: '#FFF',

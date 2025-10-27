@@ -10,5 +10,12 @@ export const styles = StyleSheet.create({
   spinner: {
     width: 80,
     height: 80,
-  }
+  },
+  message: {
+    marginTop: 10,
+    color: '#fff',
+    fontSize: 14,
+    textAlign: 'center',
+    fontFamily: 'Inter-Light'
+  },
 });

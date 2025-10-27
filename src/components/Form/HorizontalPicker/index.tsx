@@ -1,55 +1,53 @@
-// src/components/Form/HorizontalPicker/index.tsx
+// src/components/Form/FormHorizontalPicker.tsx
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import {
-  View,
-  FlatList,
-  Text,
-  Dimensions,
-  StyleSheet,
-  NativeScrollEvent,
-  NativeSyntheticEvent,
-  FlatListProps,
-} from 'react-native';
+import { View, FlatList, Text, NativeScrollEvent, NativeSyntheticEvent, FlatListProps } from 'react-native';
+import { useController, type FieldValues, type Path } from 'react-hook-form';
+import __base from '~/assets/styles/base';
+import { styles, H_PADDING, ITEM_WIDTH } from './HorizontalPickerStyle';
 
-const { width } = Dimensions.get('window');
-const ITEM_WIDTH = 20;
-const H_PADDING = (width - ITEM_WIDTH) / 2;
-
-type Props = {
+type Props<T extends FieldValues = FieldValues> = {
+  control: any;                 // RHF Control<any>
+  name: Path<T>;
   label?: string;
   min?: number;
   max?: number;
-  value: number;               // controlled value (e.g., 70)
   unit?: string;
-  onChange: (value: number) => void;
+  required?: boolean;           // visual only; enforce via rules
+  rules?: any;                  // RHF rules (e.g., { required: 'Weight required' })
 };
 
-export default function HorizontalPicker({
+export default function FormHorizontalPicker<T extends FieldValues>({
+  control,
+  name,
   label,
   min = 100,
   max = 300,
-  value,
   unit = 'lbs',
-  onChange,
-}: Props) {
-  const flatListRef = useRef<FlatList<number>>(null);
+  required,
+  rules,
+}: Props<T>) {
+  // Bind to RHF without using a render callback
+  const { field, fieldState } = useController({ control, name, rules });
 
-  // Flags/refs to coordinate scroll vs external updates
+  // ------- picker state/refs -------
+  const flatListRef = useRef<FlatList<number>>(null);
   const didInitialJump = useRef(false);
   const lastSentFromScrollRef = useRef<number | null>(null);
-  const pendingValueRef = useRef<number>(value);
+  const pendingValueRef = useRef<number>(toNumberOr(min, field.value));
+
+  const clamp = (v: number) => Math.min(Math.max(v, min), max);
+  const indexFromValue = (v: number) => clamp(v) - min;
 
   const data = useMemo<number[]>(
     () => Array.from({ length: max - min + 1 }, (_, i) => min + i),
     [min, max]
   );
 
-  const clamp = (v: number) => Math.min(Math.max(v, min), max);
-  const indexFromValue = (v: number) => clamp(v) - min;
+  const [internalValue, setInternalValue] = useState<number>(
+    clamp(toNumberOr(min, field.value))
+  );
 
-  const [internalValue, setInternalValue] = useState<number>(clamp(value));
-
-  // Jump helper (single place)
+  // Jump helper
   const jumpTo = (v: number, animated = false) => {
     const idx = indexFromValue(v);
     const offset = idx * ITEM_WIDTH;
@@ -58,29 +56,22 @@ export default function HorizontalPicker({
     });
   };
 
-  // On mount & whenever min/max/value change:
-  // - If the value came from our own scroll commit, do not jump (prevents snap-back).
-  // - Otherwise, jump to keep initial/external value centered.
+  // Sync when external form value changes
   useEffect(() => {
-    const clamped = clamp(value);
-    setInternalValue(clamped);
+    const next = clamp(toNumberOr(min, field.value));
+    setInternalValue(next);
+    if (lastSentFromScrollRef.current === next) return;
 
-    if (lastSentFromScrollRef.current === clamped) {
-      // came from our own scroll -> do not reposition
-      return;
-    }
-
-    // One-shot initial jump after first layout OR external changes
     if (!didInitialJump.current) {
       didInitialJump.current = true;
-      jumpTo(clamped, false);
+      jumpTo(next, false);
     } else {
-      jumpTo(clamped, false);
+      jumpTo(next, false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [value, min, max]);
+  }, [field.value, min, max]);
 
-  // Keep UI value live while scrolling (do NOT call onChange here)
+  // Track while scrolling (don’t commit yet)
   const handleScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
     const offsetX = Math.max(0, e.nativeEvent.contentOffset.x);
     const rawIndex = Math.round(offsetX / ITEM_WIDTH);
@@ -89,42 +80,41 @@ export default function HorizontalPicker({
 
     if (selected !== internalValue) {
       setInternalValue(selected);
-      pendingValueRef.current = selected; // remember to commit on release
+      pendingValueRef.current = selected;
     }
   };
 
-  // Commit helper on release (drag end or momentum end)
+  // Commit once on release
   const commitFromScroll = () => {
     const v = pendingValueRef.current;
-    lastSentFromScrollRef.current = v; // mark as self-originated
-    onChange(v);                       // single commit to parent/RHF
+    lastSentFromScrollRef.current = v;
+    field.onChange(v);
   };
 
   const onScrollEndDrag = () => commitFromScroll();
   const onMomentumScrollEnd = () => commitFromScroll();
 
-  // Correct TS signature for FlatList.getItemLayout
   const getItemLayout: NonNullable<FlatListProps<number>['getItemLayout']> = (
-    _data: ArrayLike<number> | null | undefined,
-    index: number 
-  ) => ({
-    length: ITEM_WIDTH,
-    offset: ITEM_WIDTH * index,
-    index, 
-  });
+    _,
+    index
+  ) => ({ length: ITEM_WIDTH, offset: ITEM_WIDTH * index, index });
 
   return (
     <View style={styles.wrapper}>
-      {label ? <Text style={styles.label}>{label}</Text> : null}
+      {!!label && (
+        <Text style={styles.label}>
+          {label}
+          {required && <Text style={__base.asterix}> *</Text>}
+        </Text>
+      )}
 
-      <View style={styles.scaleWrapper} onLayout={() => jumpTo(value, false)}>
+      <View style={styles.scaleWrapper} onLayout={() => jumpTo(internalValue, false)}>
         <FlatList
           ref={flatListRef}
           data={data}
-          keyExtractor={(item) => item.toString()}
+          keyExtractor={(item) => String(item)}
           horizontal
           showsHorizontalScrollIndicator={false}
-          // Smooth feel you liked
           snapToInterval={ITEM_WIDTH}
           decelerationRate="fast"
           bounces={false}
@@ -134,7 +124,6 @@ export default function HorizontalPicker({
           onScrollEndDrag={onScrollEndDrag}
           onMomentumScrollEnd={onMomentumScrollEnd}
           scrollEventThrottle={16}
-          // We avoid initialScrollIndex jank; jump via onLayout/effect instead
           getItemLayout={getItemLayout}
           renderItem={({ item }) => (
             <View style={styles.item}>
@@ -155,54 +144,18 @@ export default function HorizontalPicker({
         <Text style={styles.valueNumber}>{internalValue}</Text>
         <Text style={styles.valueUnit}> {unit}</Text>
       </Text>
+
+      {!!fieldState.error?.message && (
+        <Text style={[__base.errorMsg, { marginTop: 6 }]}>
+          {String(fieldState.error.message)}
+        </Text>
+      )}
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  wrapper: {
-    paddingVertical: 40,
-    alignItems: 'center',
-    backgroundColor: '#000',
-    maxHeight: 150,
-    marginBottom: 30,
-  },
-  label: {
-    color: '#FFF',
-    fontSize: 16,
-    marginBottom: 20,
-    fontFamily: 'Inter-SemiBold',
-    alignSelf: 'flex-start',
-    paddingHorizontal: 20,
-  },
-  scaleWrapper: { position: 'relative' },
-  item: {
-    width: ITEM_WIDTH,
-    alignItems: 'center',
-    justifyContent: 'flex-start',
-  },
-  tick: { width: 2, backgroundColor: '#888', height: 20 },
-  longTick: { height: 30, backgroundColor: '#FFF' },
-  shortTick: { height: 15 },
-  tickLabel: {
-    marginTop: 4,
-    color: '#FFF',
-    fontSize: 12,
-    fontFamily: 'Inter-Light',
-  },
-  centerIndicator: {
-    position: 'absolute',
-    top: 0,
-    bottom: 30,
-    left: width / 2 - 1,
-    width: 2,
-    backgroundColor: '#FFF',
-  },
-  valueDisplay: {
-    marginTop: -20,
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-  },
-  valueNumber: { fontSize: 32, fontWeight: 'bold', color: '#FFF' },
-  valueUnit: { fontSize: 18, color: '#FFF', marginLeft: 4, fontFamily: 'Inter-Light' },
-});
+function toNumberOr(fallback: number, v: unknown) {
+  if (typeof v === 'number') return v;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : fallback;
+}

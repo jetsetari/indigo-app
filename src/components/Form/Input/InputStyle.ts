@@ -9,14 +9,7 @@ export const styles = StyleSheet.create({
   inputFocused: {
     borderWidth: 2,
   },
-  label: {
-    fontFamily: 'Inter-SemiBold', fontSize: 13, color: '#FFF', 
-    marginBottom: 5,
-  },
-  inputField: {
-    flex: 1, fontFamily: 'Inter-Light', fontSize: 14, 
-    color: '#FFF', height: 45, width: '100%',
-  },
+  inputField: {},
   icon: {
     marginLeft: 10,
   },

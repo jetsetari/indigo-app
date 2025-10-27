@@ -32,7 +32,7 @@ export default function ForgotPassword() {
               <Text style={[__base.textSubline]}>
                 Don’t worry — we’ll help you get back on track in no time.
               </Text>
-              <FormInput label="Email" type="email" onChange={setEmail} value={email} required />
+              {/*<FormInput label="Email" type="email" onChange={setEmail} value={email} required />*/}
               <CustomButton title="Recover Password" backgroundColor="#FFF" textColor="#000" onPress={() => {   console.log('Button pressed!'); }} />
               <View style={__base.space} />
               <TouchableOpacity onPress={() => navigation.navigate('Login')}>
