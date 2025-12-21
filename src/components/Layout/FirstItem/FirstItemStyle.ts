@@ -23,6 +23,8 @@ export const styles = StyleSheet.create({
     fontSize: 14,
     fontFamily: 'Inter-Light',
     color: "#EEE",
+    textAlign: 'center',
+    marginTop: 10,
   },
 });
 

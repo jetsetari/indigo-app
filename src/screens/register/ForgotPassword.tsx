@@ -1,22 +1,48 @@
-import React, { useState } from 'react';
-import { View, StyleSheet, Text, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
+import React from 'react';
+import { View, Text, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import { useForm } from 'react-hook-form';
 
-import CustomButton from '~/components/Buttons/CustomButton';
-import IconButton from '~/components/Buttons/IconButton';
-import FormInput from '~/components/Form/Input';
-import Logo from '~/components/Layout/Logo';
 import BgVideo from '~/components/Layout/BgVideo';
+import CustomButton from '~/components/Buttons/CustomButton';
+import { FormInput } from '~/components/Form';
+import IconButton from '~/components/Buttons/IconButton';
+import Logo from '~/components/Layout/Logo';
+
+import useTranslation from '~/data/helpers/translation';
+import { resetPassword } from '~/data/supabase/authHandler';
+import { validateLogin } from '~/data/forms/validationRules';
 
 import __base from '~/assets/styles/base';
 
+type ForgotPasswordForm = {
+  email: string;
+};
+
 export default function ForgotPassword() {
-  const [email, setEmail] = useState('');
   const navigation = useNavigation<any>();
+  const t = useTranslation().login;
+  const { control, handleSubmit, formState: { isSubmitting }} = useForm<ForgotPasswordForm>({
+    defaultValues: { email: '' },
+    mode: 'all',
+  });
+
+  const onSubmit = async ({ email }: ForgotPasswordForm) => {
+    try {
+      await resetPassword(email);
+      // Optionally navigate back to login after showing success
+      setTimeout(() => {
+        navigation.navigate('Login');
+      }, 2000);
+    } catch (e: any) {
+      console.log(e);
+      // Error is already handled in resetPassword with toast
+    }
+  };
 
   return (
     <View style={__base.container}>
-      <BgVideo source={require('~/assets/videos/background-4.mp4')} overlayStyle={{ backgroundColor: 'rgba(0,0,0,0.7)' }} />
+      <BgVideo source={{ uri: 'https://vimeo.com/1136752791' }} overlayStyle={{backgroundColor: 'rgba(0,0,0,0.8)'}} resizeMode="cover"/>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }} keyboardVerticalOffset={0}>
         <ScrollView contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled">
           <View style={__base.contentCenterTop}>
@@ -30,10 +56,24 @@ export default function ForgotPassword() {
               <View style={__base.divider} />
               <Text style={[__base.textBold]}>Reset Your Password</Text>
               <Text style={[__base.textSubline]}>
-                Don’t worry — we’ll help you get back on track in no time.
+                Don't worry — we'll help you get back on track in no time.
               </Text>
-              {/*<FormInput label="Email" type="email" onChange={setEmail} value={email} required />*/}
-              <CustomButton title="Recover Password" backgroundColor="#FFF" textColor="#000" onPress={() => {   console.log('Button pressed!'); }} />
+              <FormInput 
+                control={control} 
+                name="email" 
+                label={t.emailLabel} 
+                placeholder={t.emailPlaceholder} 
+                type="email" 
+                required 
+                rules={validateLogin.email}
+              />
+              <CustomButton 
+                title={isSubmitting ? 'Sending...' : 'Recover Password'} 
+                backgroundColor="#FFF" 
+                textColor="#000" 
+                onPress={handleSubmit(onSubmit)} 
+                disabled={isSubmitting} 
+              />
               <View style={__base.space} />
               <TouchableOpacity onPress={() => navigation.navigate('Login')}>
                 <Text style={[__base.footerLink]}>Remember again? Login</Text>

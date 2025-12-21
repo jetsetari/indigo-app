@@ -6,7 +6,7 @@ const i18n = {
     },
     login: {
       title: 'Welcome Back',
-      subline: 'Let’s pick up where you left off — your goals are waiting.',
+      subline: 'Your goals are waiting.',
       emailLabel: 'Email',
       emailPlaceholder: 'john.doe@indigo.la',
       emailRequired: 'Email is required',
@@ -165,7 +165,7 @@ const i18n = {
       title: 'How would you rate',
       subtitle: 'your current fitness level?',
       trainingDays: { label: 'Which days can you train?' },
-      experience: { label: 'Experience' },
+      experience: { label: 'Training and Goals' },
       notes: {
         label: 'Got more to share?',
         placeholder: 'Fill in any details that could be relevant',

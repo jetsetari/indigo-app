@@ -37,7 +37,7 @@ export default function Login() {
 
   return (
     <View style={__base.container}>
-      <BgVideo source={{ uri: 'https://vimeo.com/1120852196' }} overlayStyle={{backgroundColor: 'rgba(0,0,0,0.8)'}} resizeMode="cover"/>
+      <BgVideo source={{ uri: 'https://vimeo.com/1136752791' }} overlayStyle={{backgroundColor: 'rgba(0,0,0,0.8)'}} resizeMode="cover"/>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }} keyboardVerticalOffset={0}>
         <ScrollView contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled">
           <View style={__base.contentCenterTop}>
@@ -55,9 +55,9 @@ export default function Login() {
               <FormInput control={control} name="password" label={t.passwordLabel} placeholder={t.passwordPlaceholder} type="password" required rules={validateLogin.password}/>
               <CustomButton title={isSubmitting ? t.submitSubmitting : t.submitIdle} backgroundColor="#FFF" textColor="#000" onPress={handleSubmit(onLogin)} disabled={isSubmitting} />
               <View style={__base.space} />
-              {/*<TouchableOpacity onPress={() => navigation.navigate('ForgotPassword')}>
+              <TouchableOpacity onPress={() => navigation.navigate('ForgotPassword')}>
                 <Text style={[__base.footerLink]}>{t.forgotPassword}</Text>
-              </TouchableOpacity>*/}
+              </TouchableOpacity>
             </View>
           </View>
         </ScrollView>

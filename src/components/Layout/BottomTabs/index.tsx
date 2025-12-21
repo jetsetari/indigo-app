@@ -8,7 +8,7 @@ import { styles } from './BottomTabsStyles';
 
 const tabs = [
   { name: 'Home', icon: 'home' },
-  { name: 'Workouts', icon: 'activity' },
+  { name: 'Schedule', icon: 'calendar' },
   { name: 'Stats', icon: 'bar-chart-2' },
   { name: 'Profile', icon: 'user' },
 ];

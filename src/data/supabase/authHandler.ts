@@ -76,6 +76,17 @@ export async function updatePassword(newPassword: string) {
   if (error) throw error;
 }
 
+export async function resetPassword(email: string) {
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: 'indigo://reset-password',
+  });
+  if (error) {
+    toastError('Reset Failed', error.message ?? 'Failed to send password reset email');
+    throw error;
+  }
+  toastSuccess('Reset Email Sent', 'Please check your email for password reset instructions');
+}
+
 
 export const INTAKE_KEYS = ['metrics','goals','level','eatinghabbits','supplements'] as const;
 export type IntakeKey = typeof INTAKE_KEYS[number];
@@ -112,21 +123,17 @@ export async function signInAndGetNext(email: string, password: string) {
     metric_system, desired_weight
   `)
   .eq('email', userEmail)
-  .single();
+  .maybeSingle();
 
+  if (!selErr && clientRow) {
+    const clientCamel = snakeToCamel(clientRow);   // avatar_url -> avatarUrl, done_screens -> doneScreens, ...
+    useUserStore.getState().setClient?.(clientCamel);
+    
+    // Get next route based on done screens
+    const next = nextIntakeRoute(clientRow.done_screens ?? []);
+    return { next };
+  }
 
-if (!selErr && clientRow) {
-  const clientCamel = snakeToCamel(clientRow);   // avatar_url -> avatarUrl, done_screens -> doneScreens, ...
-  useUserStore.getState().setClient?.(clientCamel);
-}
-
-// keep your existing next-screen logic as-is…
-const { data: clientForNext } = await supabase
-  .from('clients')
-  .select('done_screens')
-  .eq('email', userEmail)
-  .single();
-
-const next = nextIntakeRoute(clientForNext?.done_screens ?? []);
-return { next };
+  // If no client found, default to Metrics (first intake screen)
+  return { next: 'Metrics' };
 }
