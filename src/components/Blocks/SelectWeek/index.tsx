@@ -37,23 +37,34 @@ export default function SelectWeek({
   statusByDate = {},
   maxDateISO,
 }: Props) {
-  const maxISO = maxDateISO ?? dayjs().format('YYYY-MM-DD');
+  const today = dayjs();
+  // Calculate max allowed date: today + 14 days (2 weeks)
+  // If maxDateISO is provided (e.g., today), use that as base, otherwise use today
+  const baseDate = maxDateISO ? dayjs(maxDateISO) : today;
+  const maxAllowedDate = baseDate.add(14, 'day');
+
+  const todayISO = today.format('YYYY-MM-DD');
 
   const days = useMemo(() => {
     const start = dayjs(weekStartISO);
     return Array.from({ length: 7 }, (_, i) => {
       const d = start.add(i, 'day');
+      const dISO = d.format('YYYY-MM-DD');
       return {
-        iso: d.format('YYYY-MM-DD'),
+        iso: dISO,
         dateNum: d.date(),
         dow: DOW_LABELS[i].key,
         dowShort: DOW_LABELS[i].short,
-        isFuture: d.isAfter(dayjs(maxISO), 'day'),
+        // Disable only if date is after the 2-week limit (14 days from base date)
+        isFuture: d.isAfter(maxAllowedDate, 'day'),
+        isToday: dISO === todayISO,
       };
     });
-  }, [weekStartISO, maxISO]);
+  }, [weekStartISO, maxAllowedDate, todayISO]);
 
-  const isCurrentWeek = dayjs(weekStartISO).isSame(dayjs(maxISO), 'week');
+  // Check if we're at the 2-week limit (if the end of this week extends beyond maxAllowedDate)
+  const weekEnd = dayjs(weekStartISO).add(6, 'day');
+  const isAtMaxWeek = weekEnd.isAfter(maxAllowedDate, 'day');
 
   return (
     <View style={s.row}>
@@ -69,6 +80,7 @@ export default function SelectWeek({
           const preferred = preferredDays.includes(d.dow);
           const status = statusByDate[d.iso] ?? 'none';
           const disabled = d.isFuture;
+          const isToday = d.isToday && !selected; // Only highlight today if not selected
 
           return (
             <Pressable
@@ -77,9 +89,24 @@ export default function SelectWeek({
               disabled={disabled}
               style={[s.dayWrap, disabled && { opacity: 0.5 }]}
             >
-              <View style={[s.dateBox, selected && s.dateBoxSelected]}>
-                <Text style={[s.dateText, selected && s.dateTextSelected]}>{d.dateNum}</Text>
-                <Text style={[s.dowText, preferred && s.dowPreferred, selected && s.dateTextSelected]}>
+              <View style={[
+                s.dateBox, 
+                selected && s.dateBoxSelected,
+                isToday && s.dateBoxToday
+              ]}>
+                <Text style={[
+                  s.dateText, 
+                  selected && s.dateTextSelected,
+                  isToday && s.dateTextToday
+                ]}>
+                  {d.dateNum}
+                </Text>
+                <Text style={[
+                  s.dowText, 
+                  preferred && s.dowPreferred, 
+                  selected && s.dateTextSelected,
+                  isToday && s.dowTextToday
+                ]}>
                   {d.dowShort}
                 </Text>
               </View>
@@ -93,10 +120,11 @@ export default function SelectWeek({
         })}
       </View>
 
-      {/* Next week (hidden on current week) */}
+      {/* Next week (disabled at 2-week limit) */}
       <Pressable
-        onPress={() => onChangeWeek(1)}
-        style={[s.navBtn, isCurrentWeek && { opacity: 0.2, pointerEvents: 'none' }]}
+        onPress={() => !isAtMaxWeek && onChangeWeek(1)}
+        disabled={isAtMaxWeek}
+        style={[s.navBtn, isAtMaxWeek && { opacity: 0.2, pointerEvents: 'none' }]}
       >
         <Feather name="chevron-right" size={18} color="#000" />
       </Pressable>
@@ -111,9 +139,12 @@ const s = StyleSheet.create({
   dayWrap: { alignItems: 'center', gap: 6, minWidth: 38 },
   dateBox: { alignItems: 'center', justifyContent: 'center', paddingVertical: 10, paddingHorizontal: 10 },
   dateBoxSelected: { backgroundColor: '#000' },
+  dateBoxToday: { borderWidth: 2, borderColor: '#4DD4AC', borderRadius: 0 },
   dateText: { fontSize: 16, fontFamily: 'Inter-SemiBold', color: '#000' },
   dateTextSelected: { color: '#fff' },
+  dateTextToday: { color: '#4DD4AC', fontWeight: '700' },
   dowText: { marginTop: 2, fontSize: 11, color: '#9ca3af', fontFamily: 'Inter-Regular' },
+  dowTextToday: { color: '#4DD4AC', fontWeight: '600' },
   dowPreferred: { color: '#000', borderBottomWidth: 1 },
   dot: { width: 6, height: 6, borderRadius: 5, marginTop: 6, position: 'absolute', bottom: 25, left: 6 },
   dotGreen: { backgroundColor: '#22c55e' },

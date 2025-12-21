@@ -33,7 +33,12 @@ const tokenToSeconds = (t?: string | number | null) => {
 };
 
 
-type Params = { item: WorkoutItem; setIndex: number; supersetNum: number };
+type Params = { 
+  item: WorkoutItem; 
+  setIndex: number; 
+  supersetNum: number;
+  returnTo?: 'Home' | 'Workouts'; // Track where we came from
+};
 
 export default function Exercise() {
   const nav = useNavigation<any>();
@@ -41,8 +46,10 @@ export default function Exercise() {
   const item: WorkoutItem = params?.item;
   const setIndex: number = params?.setIndex ?? 0;
   const supersetNum: number = params?.supersetNum ?? 1;
+  const returnTo: 'Home' | 'Workouts' | undefined = params?.returnTo;
 
-  const title = item?.exercise?.name ?? 'Exercise';
+  // Use custom_exercise_name if available, otherwise fall back to exercise.name
+  const title = (item?.customExerciseName?.trim() || item?.exercise?.name) ?? 'Exercise';
   const headerImg = item?.exercise?.cover ?? undefined;
   const headerVideo = item?.exercise?.video ?? undefined;
 
@@ -62,32 +69,40 @@ export default function Exercise() {
 
   const start = () => { setIsPlaying(true); setHasStarted(true); };
   const pause = () => setIsPlaying(false);
-  const done  = () =>
+  const done  = () => {
+    const todayISO = new Date().toISOString().slice(0, 10);
     nav.navigate('LogExercise', {
       item,
       setIndex,
       supersetNum,
       itemsAll: params?.itemsAll,   // keep the chain
       idxAll: params?.idxAll,
+      returnTo, // pass returnTo to LogExercise
+      date: todayISO,
     });
+  };
 
 
   const handleStart = () => setRunning(true);
-  const handleDone = () =>
+  const handleDone = () => {
+    const todayISO = new Date().toISOString().slice(0, 10);
     nav.navigate('LogExercise', {
       item,
       setIndex,
       supersetNum,
       itemsAll: params?.itemsAll,   // keep the chain
       idxAll: params?.idxAll,
+      returnTo, // pass returnTo to LogExercise
+      date: todayISO,
     });
+  };
 
   return (
     <FullBleed
       backgroundUri={headerImg}
       backgroundVideoUri={headerVideo}
       darkOverlay={!isPlaying}                  // 👈 overlay disappears when playing
-      Top={<IconButton route="Home" />}
+      Top={<IconButton route={returnTo || 'Home'} />}
       Center={
         !isPlaying && (                         // 👈 title/description hidden while playing
           <View style={{ marginBottom: 20, flex: 1 }}>

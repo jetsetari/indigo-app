@@ -26,6 +26,27 @@ const isVimeoUrl = (u?: string) => !!u && /(^https?:\/\/)?(player\.)?vimeo\.com/
 const extractVimeoId = (url: string) =>
   (url.match(/vimeo\.com\/(?:video\/)?(\d+)/) || url.match(/player\.vimeo\.com\/video\/(\d+)/))?.[1] ?? null;
 
+const isYouTubeUrl = (u?: string) => !!u && /(^https?:\/\/)?(www\.)?(youtube\.com|youtu\.be)/.test(u);
+const extractYouTubeId = (url: string): string | null => {
+  // Handle Shorts: youtube.com/shorts/{id} or youtube.com/shorts/{id}
+  const shortsMatch = url.match(/youtube\.com\/shorts\/([a-zA-Z0-9_-]+)/);
+  if (shortsMatch) return shortsMatch[1];
+  
+  // Handle regular: youtube.com/watch?v={id}
+  const watchMatch = url.match(/youtube\.com\/watch\?v=([a-zA-Z0-9_-]+)/);
+  if (watchMatch) return watchMatch[1];
+  
+  // Handle youtu.be: youtu.be/{id}
+  const shortLinkMatch = url.match(/youtu\.be\/([a-zA-Z0-9_-]+)/);
+  if (shortLinkMatch) return shortLinkMatch[1];
+  
+  // Handle embed: youtube.com/embed/{id}
+  const embedMatch = url.match(/youtube\.com\/embed\/([a-zA-Z0-9_-]+)/);
+  if (embedMatch) return embedMatch[1];
+  
+  return null;
+};
+
 /* ---------- Native (expo-video) ---------- */
 const BgVideoNative: React.FC<
   Required<Pick<BgVideoProps, 'source'>> &
@@ -48,6 +69,86 @@ const BgVideoNative: React.FC<
       pointerEvents="none"
     />
   );
+};
+
+/* ---------- YouTube (WebView) ---------- */
+const BgVideoYouTube: React.FC<
+  Required<Pick<BgVideoProps, 'source'>> &
+  Pick<BgVideoProps, 'autoPlay' | 'loop' | 'muted' | 'videoStyle'>
+> = ({ source, autoPlay = true, loop = true, muted = true, videoStyle }) => {
+  const uri = (source as any).uri as string;
+
+  const youtubeEmbedUrl = useMemo(() => {
+    const id = extractYouTubeId(uri);
+    if (!id) return null;
+    const params = new URLSearchParams({
+      autoplay: String(autoPlay ? 1 : 0),
+      loop: String(loop ? 1 : 0),
+      mute: String(muted ? 1 : 0),
+      controls: '0',
+      playsinline: '1',
+      rel: '0',
+      modestbranding: '1',
+      enablejsapi: '1',
+      // For Shorts, we want to loop and autoplay
+      ...(uri.includes('/shorts/') ? { loop: '1', playlist: id } : {}),
+    }).toString();
+    return `https://www.youtube.com/embed/${id}?${params}`;
+  }, [uri, autoPlay, loop, muted]);
+
+  if (!youtubeEmbedUrl) return null;
+
+  const isShorts = uri.includes('/shorts/');
+  const html = `<!doctype html>
+    <html><head>
+    <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
+    <style>
+      html,body{margin:0;height:100%;overflow:hidden;background:#000}
+      .wrap{position:fixed;inset:0;overflow:hidden;background:#000}
+      ${isShorts 
+        ? `/* 9:16 aspect ratio for Shorts - fill and crop like object-fit: cover */
+      .frame{
+        position:absolute;top:50%;left:50%;
+        width:177.78vh;height:100vh;           /* 16/9 = 1.7778 */
+        min-width:100vw;min-height:56.25vw;    /* 9/16 = 0.5625 */
+        transform:translate(-50%,-50%);
+        border:0;
+      }`
+        : `/* 16:9 aspect ratio for regular videos - fill and crop like object-fit: cover */
+      .frame{
+        position:absolute;top:50%;left:50%;
+        width:100vw;height:56.25vw;           /* 9/16 = 0.5625 */
+        min-width:177.78vh;min-height:100vh;  /* 16/9 = 1.7778 */
+        transform:translate(-50%,-50%);
+        border:0;
+      }`
+      }
+    </style>
+    </head><body>
+      <div class="wrap">
+        <iframe class="frame"
+          src="${youtubeEmbedUrl}"
+          allow="autoplay; fullscreen; picture-in-picture; encrypted-media"
+          allowfullscreen></iframe>
+      </div>
+    </body></html>`;
+
+    return (
+      <WebView
+        source={{ html }}
+        style={[StyleSheet.absoluteFill, { backgroundColor: '#000' }]}
+        containerStyle={[StyleSheet.absoluteFill, { backgroundColor: '#000' }]}
+        contentInsetAdjustmentBehavior="never"
+        automaticallyAdjustContentInsets={false}
+        allowsInlineMediaPlayback
+        mediaPlaybackRequiresUserAction={false}
+        javaScriptEnabled
+        scrollEnabled={false}
+        bounces={false}
+        setSupportMultipleWindows={false}
+        pointerEvents="none"
+      />
+    );
 };
 
 /* ---------- Vimeo (WebView) ---------- */
@@ -131,6 +232,7 @@ const BgVideo: React.FC<BgVideoProps> = ({
 }) => {
   const isRemote = typeof source === 'object' && !!(source as any)?.uri;
   const uri = isRemote ? ((source as any).uri as string) : undefined;
+  const useYouTube = isRemote && isYouTubeUrl(uri);
   const useVimeo = isRemote && isVimeoUrl(uri);
 
   return (
@@ -144,7 +246,15 @@ const BgVideo: React.FC<BgVideoProps> = ({
         />
       ) : null}
     </View>
-      {useVimeo ? (
+      {useYouTube ? (
+        <BgVideoYouTube
+          source={source as { uri: string }}
+          autoPlay={autoPlay}
+          loop={loop}
+          muted={muted}
+          videoStyle={videoStyle}
+        />
+      ) : useVimeo ? (
         <BgVideoVimeo
           source={source as { uri: string }}
           autoPlay={autoPlay}

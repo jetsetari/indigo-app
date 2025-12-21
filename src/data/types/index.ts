@@ -97,6 +97,7 @@ export type WorkoutItem = {
   weight: number | null;
   restSeconds: number | null;
   notes: string | null;
+  customExerciseName: string | null;  // custom exercise name (overrides exercise.name when set)
   exercise?: Exercise | null;
 };
 

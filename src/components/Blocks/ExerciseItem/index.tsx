@@ -15,6 +15,7 @@ type Props = {
   done?: boolean;              // show green check when showCheck=true
   showCheck?: boolean;         // opt-in to render a check UI
   onPress?: () => void;        // make the card tappable
+  setsProgress?: string;       // e.g., "2/3" to show sets progress
 };
 
 export default function ExerciseItem({
@@ -28,6 +29,7 @@ export default function ExerciseItem({
   done,
   showCheck,
   onPress,
+  setsProgress,
 }: Props) {
   const Wrapper: any = onPress ? Pressable : View;
 
@@ -36,7 +38,8 @@ export default function ExerciseItem({
       onPress={onPress}
       style={[
         styles.card,
-        { borderColor, backgroundColor },
+        //{ borderColor, backgroundColor },
+        { borderColor, backgroundColor: '#000000' },
         selected && styles.selected,
       ]}
     >
@@ -49,6 +52,9 @@ export default function ExerciseItem({
       <View style={styles.content}>
         <Text style={[styles.title, selected && styles.selectedColor]} numberOfLines={1}>{title}</Text>
         {!!subtitle && <Text style={[styles.subtitle, selected && styles.selectedColor]} numberOfLines={1}>{subtitle}</Text>}
+        {setsProgress && (
+          <Text style={[styles.setsProgress, selected && styles.selectedColor]}>{setsProgress} sets</Text>
+        )}
       </View>
 
       {!!label && <Text style={[styles.label, selected && styles.selectedColor]}>{label}</Text>}
@@ -78,6 +84,7 @@ const styles = StyleSheet.create({
   title: { color: '#fff', fontSize: 14, fontWeight: '700' },
   selectedColor: {  },
   subtitle: { color: '#cbd5e1', fontSize: 12, marginTop: 4 },
+  setsProgress: { color: '#999', fontSize: 11, marginTop: 2 },
   label: { color: '#e2e8f0', fontWeight: '800' },
   checkWrap: { marginLeft: 8, backgroundColor: '#CCC' },
   checkWrapChecked: { marginLeft: 8, backgroundColor: '#22c55e' },

@@ -42,7 +42,8 @@ export function Badge({
 
 function hexagonPoints(size: number, inset: number): string {
   const half = size / 2;
-  const quarter = size / 4;
+  // Use less than quarter to increase height - smaller value = taller hexagon
+  const quarter = size * 0.18; // Original was size / 4 (0.25), using 0.18 to increase height more
   return [
     `${half},${inset}`,
     `${size - inset},${quarter + inset / 2}`,

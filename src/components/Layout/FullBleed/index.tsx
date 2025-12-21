@@ -63,7 +63,7 @@ export default function FullBleed({
 const s = StyleSheet.create({
   root: { flex: 1, padding: 10, backgroundColor: '#000' },
   bg: { ...StyleSheet.absoluteFillObject },
-  overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.45)' },
+  overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.80)' },
   safe: { flex: 1, paddingHorizontal: 12 },
   top: { minHeight: 44, justifyContent: 'flex-start' },
   center: { flex: 1, justifyContent: 'flex-end' },
