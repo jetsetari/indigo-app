@@ -26,3 +26,4 @@ export { default as FormSelectRow } from './SelectRow';
 export { default as FormSelectGrid } from './SelectGrid';
 export { default as FormHorizontalPicker } from './HorizontalPicker';
 export { default as FormSelectMulti } from './SelectMulti';
+export { default as FormSelectSingle } from './SelectSingle';

@@ -26,6 +26,28 @@ type MetricsValues = typeof metricsDefault;
 
 const API_BASE = 'https://indigo-backend-j5pl.onrender.com';
 
+async function urlToBase64(url: string): Promise<string> {
+  try {
+    const response = await fetch(url);
+    const blob = await response.blob();
+    
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64String = reader.result as string;
+        // Return just the base64 data without the data:image/jpeg;base64, prefix
+        const base64Data = base64String.split(',')[1];
+        resolve(base64Data);
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  } catch (error) {
+    console.error('Error converting URL to base64:', error);
+    throw new Error('Failed to convert image to base64');
+  }
+}
+
 export default function Metrics() {
   const navigation = useNavigation<any>();
   const t = useTranslation().metrics;
@@ -78,11 +100,20 @@ export default function Metrics() {
     }
 
     try {
+      setLoading('Doing AI Estimate: Converting images...');
+      
+      // Convert image URLs to base64
+      const [frontBase64, sideBase64, backBase64] = await Promise.all([
+        urlToBase64(pictureFront),
+        urlToBase64(pictureSide),
+        urlToBase64(pictureBack),
+      ]);
+
       setLoading('Doing AI Estimate: Checking front, side, back photo');
       const res = await fetch(`${API_BASE}/estimate-bodyfat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ front: pictureFront, side: pictureSide, back: pictureBack }),
+        body: JSON.stringify({ front: frontBase64, side: sideBase64, back: backBase64 }),
       });
       const data = await res.json();
 
@@ -98,9 +129,10 @@ export default function Metrics() {
         setLoading(false);
         toastError('AI Estimation', data?.value || 'Unable to estimate.');
       }
-    } catch {
+    } catch (error) {
       setLoading(false);
-      toastError('AI Estimation', 'Network error.');
+      toastError('AI Estimation', 'Failed to process images. Please try again.');
+      console.error('AI Estimation error:', error);
     }
   }, [getValues, setValue, t]);
 
