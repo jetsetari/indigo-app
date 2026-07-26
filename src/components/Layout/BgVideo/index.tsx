@@ -327,6 +327,9 @@ const BgVideoNative: React.FC<NativeProps & { crossfadeLoop?: boolean }> = ({
 };
 
 /* ---------- YouTube (WebView) ---------- */
+/** Bundle ID as https origin — required by YouTube embeds (error 153 without Referer). */
+const YOUTUBE_EMBED_ORIGIN = 'https://com.workitout.indigo';
+
 const BgVideoYouTube: React.FC<
   Required<Pick<BgVideoProps, 'source'>> &
   Pick<BgVideoProps, 'autoPlay' | 'loop' | 'muted' | 'videoStyle'>
@@ -345,6 +348,7 @@ const BgVideoYouTube: React.FC<
       rel: '0',
       modestbranding: '1',
       enablejsapi: '1',
+      origin: YOUTUBE_EMBED_ORIGIN,
       ...(uri.includes('/shorts/') ? { loop: '1', playlist: id } : {}),
     }).toString();
     return `https://www.youtube.com/embed/${id}?${params}`;
@@ -356,6 +360,7 @@ const BgVideoYouTube: React.FC<
   const html = `<!doctype html>
     <html><head>
     <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
+    <meta name="referrer" content="strict-origin-when-cross-origin"/>
     <style>
       html,body{margin:0;height:100%;overflow:hidden;background:#000}
       .wrap{position:fixed;inset:0;overflow:hidden;background:#000}
@@ -382,6 +387,7 @@ const BgVideoYouTube: React.FC<
       <div class="wrap">
         <iframe class="frame"
           src="${youtubeEmbedUrl}"
+          referrerpolicy="strict-origin-when-cross-origin"
           allow="autoplay; fullscreen; picture-in-picture; encrypted-media"
           allowfullscreen></iframe>
       </div>
@@ -389,7 +395,7 @@ const BgVideoYouTube: React.FC<
 
   return (
     <WebView
-      source={{ html }}
+      source={{ html, baseUrl: YOUTUBE_EMBED_ORIGIN }}
       style={[StyleSheet.absoluteFill, { backgroundColor: '#000' }]}
       containerStyle={[StyleSheet.absoluteFill, { backgroundColor: '#000' }]}
       contentInsetAdjustmentBehavior="never"
@@ -397,6 +403,7 @@ const BgVideoYouTube: React.FC<
       allowsInlineMediaPlayback
       mediaPlaybackRequiresUserAction={false}
       javaScriptEnabled
+      domStorageEnabled
       scrollEnabled={false}
       bounces={false}
       setSupportMultipleWindows={false}

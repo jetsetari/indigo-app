@@ -12,14 +12,9 @@ interface Props {
 }
 
 const iconMap: Record<IconName, any> = {
-  Time: require('~/assets/images/Icons/Time.png'),
   Barbell: require('~/assets/images/Icons/Barbell.png'),
-  Kcal: require('~/assets/images/Icons/Kcal.png'),
   Weight: require('~/assets/images/Icons/Weight.png'),
   Birthday: require('~/assets/images/Icons/Birthday.png'),
-  Health: require('~/assets/images/Icons/Health.png'),
-  // add more icons here:
-  // Another: require('~/assets/images/Icons/Another.png'),
 };
 
 export default function CustomIcon({
