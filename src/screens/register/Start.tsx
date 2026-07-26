@@ -16,7 +16,7 @@ export default function Start() {
 
   return (
     <View style={__base.container}>
-      <BgVideo source={{ uri: 'https://vimeo.com/1136752791' }} overlayStyle={{backgroundColor: 'rgba(0,0,0,0.6)'}} resizeMode="cover"/>
+      <BgVideo source={{ uri: 'https://vimeo.com/1213000669' }} overlayStyle={{backgroundColor: 'rgba(0,0,0,0.6)'}} resizeMode="cover"/>
       <View style={__base.contentCenter}>
         <View style={__base.contentCenterLogo}>
           <Logo />

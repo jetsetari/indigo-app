@@ -157,13 +157,18 @@ export default function Home() {
   const handleSelectWeekWorkout = (workout: SelectableWeekWorkout) => {
     if (!client?.id || movingDayId) return;
 
-    const title = workout.title?.trim() || 'this workout';
-    const fromLabel = dayjs(workout.date).format('dddd');
+    const title = workout.title?.trim() || `Day ${workout.dayIndex}`;
+    const fromLabel = workout.date
+      ? dayjs(workout.date).format('dddd')
+      : `Day ${workout.dayIndex}`;
     const todayISO = new Date().toISOString().slice(0, 10);
+    const message = workout.date
+      ? `Move "${title}" from ${fromLabel} to today so you can train now.`
+      : `Assign "${title}" to today so you can train now.`;
 
     Alert.alert(
       'Do this workout today?',
-      `Move "${title}" from ${fromLabel} to today so you can train now.`,
+      message,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -339,8 +344,10 @@ export default function Home() {
                 No workout scheduled for today. Pick one from this week to train now.
               </Text>
               {weekOptions.map((workout) => {
-                const title = workout.title?.trim() || dayjs(workout.date).format('dddd');
-                const dayLabel = dayjs(workout.date).format('dddd');
+                const title = workout.title?.trim() || `Day ${workout.dayIndex}`;
+                const dayLabel = workout.date
+                  ? dayjs(workout.date).format('dddd')
+                  : `Day ${workout.dayIndex}`;
                 const isMoving = movingDayId === workout.id;
                 return (
                   <TouchableOpacity
@@ -350,15 +357,35 @@ export default function Home() {
                     disabled={movingDayId !== null}
                     activeOpacity={0.7}
                   >
-                    <View style={homeStyles.pickCardLeft}>
-                      <Text style={homeStyles.pickDay}>{dayLabel}</Text>
-                      <Text style={homeStyles.pickTitle}>{title}</Text>
+                    <View style={homeStyles.pickCardBody}>
+                      <View style={homeStyles.pickCardHeader}>
+                        <View style={homeStyles.pickCardLeft}>
+                          <Text style={homeStyles.pickDay}>{dayLabel}</Text>
+                          <Text style={homeStyles.pickTitle}>{title}</Text>
+                        </View>
+                        {isMoving ? (
+                          <ActivityIndicator color="#4DD4AC" />
+                        ) : (
+                          <Feather name="chevron-right" size={22} color="#888" />
+                        )}
+                      </View>
+                      {workout.previewExercises.length > 0 && (
+                        <View style={homeStyles.previewList}>
+                          {workout.previewExercises.map((name, index) => (
+                            <Text
+                              key={`${workout.id}-${index}`}
+                              style={[
+                                homeStyles.previewExercise,
+                                { opacity: PREVIEW_OPACITIES[index] ?? 0.08 },
+                              ]}
+                              numberOfLines={1}
+                            >
+                              {name}
+                            </Text>
+                          ))}
+                        </View>
+                      )}
                     </View>
-                    {isMoving ? (
-                      <ActivityIndicator color="#4DD4AC" />
-                    ) : (
-                      <Feather name="chevron-right" size={22} color="#888" />
-                    )}
                   </TouchableOpacity>
                 );
               })}
@@ -423,6 +450,8 @@ export default function Home() {
   );
 }
 
+const PREVIEW_OPACITIES = [0.55, 0.35, 0.2, 0.1];
+
 const homeStyles = StyleSheet.create({
   pickSection: {
     marginTop: 8,
@@ -435,8 +464,6 @@ const homeStyles = StyleSheet.create({
     marginBottom: 4,
   },
   pickCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
     backgroundColor: '#111',
     borderColor: '#333',
     borderWidth: 1,
@@ -444,6 +471,13 @@ const homeStyles = StyleSheet.create({
   },
   pickCardDisabled: {
     opacity: 0.6,
+  },
+  pickCardBody: {
+    gap: 8,
+  },
+  pickCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   pickCardLeft: {
     flex: 1,
@@ -457,6 +491,14 @@ const homeStyles = StyleSheet.create({
     color: '#FFF',
     fontSize: 16,
     fontWeight: '600',
+  },
+  previewList: {
+    gap: 2,
+    paddingRight: 28,
+  },
+  previewExercise: {
+    color: '#FFF',
+    fontSize: 13,
   },
   manageLink: {
     paddingVertical: 8,

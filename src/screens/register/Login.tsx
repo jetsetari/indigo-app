@@ -36,7 +36,7 @@ export default function Login() {
 
   return (
     <View style={__base.container}>
-      <BgVideo source={{ uri: 'https://vimeo.com/1136752791' }} overlayStyle={{backgroundColor: 'rgba(0,0,0,0.8)'}} resizeMode="cover"/>
+      <BgVideo source={{ uri: 'https://vimeo.com/1213000669' }} overlayStyle={{backgroundColor: 'rgba(0,0,0,0.8)'}} resizeMode="cover"/>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }} keyboardVerticalOffset={0}>
         <ScrollView contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled">
           <View style={__base.contentCenterTop}>

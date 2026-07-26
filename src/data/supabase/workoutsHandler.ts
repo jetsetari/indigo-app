@@ -377,13 +377,26 @@ function isWorkoutDayComplete(
 export type SelectableWeekWorkout = {
   id: number;
   title: string | null;
-  date: string;
+  date: string | null;
+  dayIndex: number;
   coverImage?: string | null;
+  previewExercises: string[];
 };
 
+function exercisePreviewName(item: {
+  customExerciseName?: string | null;
+  exercise?: { name?: string | null } | null;
+}): string | null {
+  const custom = item.customExerciseName?.trim();
+  if (custom) return custom;
+  const name = item.exercise?.name?.trim();
+  return name || null;
+}
+
 /**
- * Incomplete workouts in the current calendar week (excluding today),
- * ordered by date, capped at `limit` (default 3). Used when Home has no workout today.
+ * Incomplete workouts from program week(s) anchored to the current calendar week.
+ * If any day in a program week is dated this Mon–Sun, all unfinished days in that
+ * week are eligible (including undated ones), ordered by day_index, capped at `limit`.
  */
 export async function fetchSelectableWeekWorkouts(
   clientId: number,
@@ -393,21 +406,116 @@ export async function fetchSelectableWeekWorkouts(
   const weekStart = getWeekMonday(todayISO);
   const weekEnd = dayjs(weekStart).add(6, 'day').format('YYYY-MM-DD');
 
-  const days = await fetchWorkoutsByDateRange(clientId, weekStart, weekEnd);
-  const candidates = days.filter((d) => d.date !== todayISO);
+  const { data: programs, error: pErr } = await supabase
+    .from('workout_programs')
+    .select('id')
+    .eq('client_id', clientId);
+  if (pErr) throw pErr;
+  if (!programs?.length) return [];
+
+  const programIds = programs.map((p: any) => p.id);
+
+  const { data: weeks, error: wErr } = await supabase
+    .from('workout_weeks')
+    .select('id')
+    .in('program_id', programIds);
+  if (wErr) throw wErr;
+  if (!weeks?.length) return [];
+
+  const allWeekIds = weeks.map((w: any) => w.id);
+
+  // Anchor: program weeks that have at least one day dated in the current calendar week
+  const { data: anchorDays, error: aErr } = await supabase
+    .from('workout_days')
+    .select('week_id')
+    .in('week_id', allWeekIds)
+    .gte('date', weekStart)
+    .lte('date', weekEnd);
+  if (aErr) throw aErr;
+  if (!anchorDays?.length) return [];
+
+  const anchoredWeekIds = Array.from(new Set(anchorDays.map((d: any) => d.week_id as number)));
+
+  // All days in those program weeks (dated or not)
+  const { data: days, error: dErr } = await supabase
+    .from('workout_days')
+    .select('id,week_id,day_index,title,date')
+    .in('week_id', anchoredWeekIds)
+    .order('week_id', { ascending: true })
+    .order('day_index', { ascending: true });
+  if (dErr) throw dErr;
+  if (!days?.length) return [];
+
+  const candidates = days.filter((d: any) => d.date !== todayISO);
+  if (!candidates.length) return [];
+
+  const dayIds = candidates.map((d: any) => d.id);
+
+  const { data: items, error: iErr } = await supabase
+    .from('workout_items')
+    .select('id,day_id,position,superset_label,exercise_id,sets,reps,weight,rest_seconds,notes,custom_exercise_name')
+    .in('day_id', dayIds)
+    .order('day_id', { ascending: true })
+    .order('position', { ascending: true });
+  if (iErr) throw iErr;
+
+  const exIds = Array.from(new Set((items ?? []).map((it: any) => it.exercise_id).filter(Boolean)));
+  const { data: exs, error: eErr } = exIds.length
+    ? await supabase
+        .from('exercises')
+        .select('id,name,cover')
+        .in('id', exIds)
+    : { data: [], error: null as any };
+  if (eErr) throw eErr;
+
+  const exById = new Map((exs ?? []).map((e: any) => [e.id, e]));
+
+  const itemsByDay = new Map<number, WorkoutItem[]>();
+  (items ?? []).forEach((it: any) => {
+    const arr = itemsByDay.get(it.day_id) ?? [];
+    arr.push({
+      id: it.id,
+      dayId: it.day_id,
+      position: it.position,
+      supersetLabel: it.superset_label ?? null,
+      exerciseId: it.exercise_id ?? null,
+      sets: it.sets ?? null,
+      reps: it.reps ?? null,
+      weight: it.weight ?? null,
+      restSeconds: it.rest_seconds ?? null,
+      notes: it.notes ?? null,
+      customExerciseName: it.custom_exercise_name ?? null,
+      exercise: it.exercise_id ? exById.get(it.exercise_id) ?? null : null,
+    });
+    itemsByDay.set(it.day_id, arr);
+  });
 
   const available: SelectableWeekWorkout[] = [];
   for (const day of candidates) {
-    const logs = await getLogsForDate(clientId, day.date);
-    if (isWorkoutDayComplete(day.items ?? [], logs)) continue;
+    const dayItems = itemsByDay.get(day.id) ?? [];
+    if (day.date) {
+      const logs = await getLogsForDate(clientId, day.date);
+      if (isWorkoutDayComplete(dayItems, logs)) continue;
+    }
+
+    const previewExercises = dayItems
+      .map(exercisePreviewName)
+      .filter((n): n is string => !!n)
+      .slice(0, 4);
+
+    const firstWithCover = dayItems.find((it) => it.exercise && (it.exercise as any).cover);
+
     available.push({
       id: day.id,
-      title: day.title,
-      date: day.date,
-      coverImage: day.coverImage ?? null,
+      title: day.title ?? null,
+      date: day.date ?? null,
+      dayIndex: day.day_index,
+      coverImage: (firstWithCover?.exercise as any)?.cover ?? null,
+      previewExercises,
     });
     if (available.length >= limit) break;
   }
+
   return available;
 }
 
@@ -417,11 +525,11 @@ export async function fetchSelectableWeekWorkouts(
 export async function moveWorkoutToDate(
   clientId: number,
   dayId: number,
-  fromDate: string,
+  fromDate: string | null,
   toDate: string
 ) {
   await updateWorkoutDayDate(dayId, toDate);
-  if (fromDate !== toDate) {
+  if (fromDate && fromDate !== toDate) {
     await deleteSchedule(fromDate, clientId);
   }
   await upsertWorkoutSchedule({
