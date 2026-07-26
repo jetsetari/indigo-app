@@ -1,7 +1,9 @@
 // src/screens/home/Home.tsx
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
-import { View, Text } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Alert, ActivityIndicator } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import dayjs from 'dayjs';
+import { Feather } from '@expo/vector-icons';
 
 import StickyHeader from '~/components/Layout/StickyHeader';
 import HeaderWithExtra from '~/components/Layout/HeaderWithExtra';
@@ -13,7 +15,12 @@ import Loading from '~/components/Loading';
 import { Badge } from '~/components/Layout/Badge';
 
 import { useUserStore } from '~/data/store/userStore';
-import { fetchDayByDate } from '~/data/supabase/workoutsHandler';
+import {
+  fetchDayByDate,
+  fetchSelectableWeekWorkouts,
+  moveWorkoutToDate,
+  type SelectableWeekWorkout,
+} from '~/data/supabase/workoutsHandler';
 import { getLogsForDate, getTotalWorkouts, getWorkoutStreak } from '~/data/supabase/clientWorkoutLogsHandler';
 import { groupBySupersetNumber, setsCountForGroup } from '~/data/helpers/workoutRun';
 
@@ -26,13 +33,15 @@ export default function Home() {
   const navigation = useNavigation<any>();
   const client = useUserStore((s) => s.client);
 
-  const mode = "debug" as "debug" | "production"; // "debug" or "production"
+  const mode = "production" as "debug" | "production"; // "debug" or "production"
 
   const displayName = client?.firstName ?? '';
   const avatarUrl = client?.avatarUrl ?? undefined;
 
   const [loading, setLoading] = useState(true);
   const [todayDay, setTodayDay] = useState<any | null>(null);
+  const [weekOptions, setWeekOptions] = useState<SelectableWeekWorkout[]>([]);
+  const [movingDayId, setMovingDayId] = useState<number | null>(null);
   const [logsCountByItem, setLogsCountByItem] = useState<Map<number, number>>(new Map());
   const [badges, setBadges] = useState({
     streak: 0,
@@ -46,7 +55,18 @@ export default function Home() {
       const todayISO = new Date().toISOString().slice(0, 10);
       const day = await fetchDayByDate(client.id, todayISO);
       setTodayDay(day);
-    } catch { setTodayDay(null) } finally { setLoading(false)}
+      if (!day) {
+        const options = await fetchSelectableWeekWorkouts(client.id, todayISO, 3);
+        setWeekOptions(options);
+      } else {
+        setWeekOptions([]);
+      }
+    } catch {
+      setTodayDay(null);
+      setWeekOptions([]);
+    } finally {
+      setLoading(false);
+    }
   }, [client?.id]);
 
   useEffect(() => {
@@ -133,6 +153,39 @@ export default function Home() {
       }
     }, [loadTodayDay, client?.id, mode])
   );
+
+  const handleSelectWeekWorkout = (workout: SelectableWeekWorkout) => {
+    if (!client?.id || movingDayId) return;
+
+    const title = workout.title?.trim() || 'this workout';
+    const fromLabel = dayjs(workout.date).format('dddd');
+    const todayISO = new Date().toISOString().slice(0, 10);
+
+    Alert.alert(
+      'Do this workout today?',
+      `Move "${title}" from ${fromLabel} to today so you can train now.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Move to today',
+          onPress: async () => {
+            setMovingDayId(workout.id);
+            try {
+              await moveWorkoutToDate(client.id, workout.id, workout.date, todayISO);
+              await loadTodayDay();
+              const counts = await getLogsForDate(client.id, todayISO);
+              setLogsCountByItem(counts);
+            } catch (error) {
+              console.error('Error moving workout to today:', error);
+              Alert.alert('Could not move workout', 'Please try again.');
+            } finally {
+              setMovingDayId(null);
+            }
+          },
+        },
+      ]
+    );
+  };
 
   // Find next exercise to do
   const findNextExercise = () => {
@@ -280,8 +333,49 @@ export default function Home() {
               <SupersetsXs items={todayDay.items ?? []} selectedDate={new Date().toISOString().slice(0, 10)} />
               <CustomButton title={isWorkoutComplete ? "Edit Exercises" : "Start Workout"} backgroundColor="#000" textColor="#4DD4AC" borderColor='#4DD4AC' onPress={handleStartWorkout} />
             </View>
+          ) : weekOptions.length > 0 ? (
+            <View style={homeStyles.pickSection}>
+              <Text style={homeStyles.pickHint}>
+                No workout scheduled for today. Pick one from this week to train now.
+              </Text>
+              {weekOptions.map((workout) => {
+                const title = workout.title?.trim() || dayjs(workout.date).format('dddd');
+                const dayLabel = dayjs(workout.date).format('dddd');
+                const isMoving = movingDayId === workout.id;
+                return (
+                  <TouchableOpacity
+                    key={workout.id}
+                    style={[homeStyles.pickCard, isMoving && homeStyles.pickCardDisabled]}
+                    onPress={() => handleSelectWeekWorkout(workout)}
+                    disabled={movingDayId !== null}
+                    activeOpacity={0.7}
+                  >
+                    <View style={homeStyles.pickCardLeft}>
+                      <Text style={homeStyles.pickDay}>{dayLabel}</Text>
+                      <Text style={homeStyles.pickTitle}>{title}</Text>
+                    </View>
+                    {isMoving ? (
+                      <ActivityIndicator color="#4DD4AC" />
+                    ) : (
+                      <Feather name="chevron-right" size={22} color="#888" />
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+              <TouchableOpacity
+                onPress={() => navigation.navigate('Schedule', { returnTo: 'Home' })}
+                style={homeStyles.manageLink}
+              >
+                <Text style={homeStyles.manageLinkText}>Manage schedule in Workouts</Text>
+              </TouchableOpacity>
+            </View>
           ) : (
-            <FirstItem title="Today's Workout" icon="Barbell" description={`No workout scheduled for today. \nManage your schedule in the Workouts screen.`} onClick={() => navigation.navigate('Workouts', { returnTo: 'Home' })} />
+            <FirstItem
+              title="Today's Workout"
+              icon="Barbell"
+              description={`All workouts of the week done.\nManage your schedule in the Workouts screen.`}
+              onClick={() => navigation.navigate('Schedule', { returnTo: 'Home' })}
+            />
           )}
            {/* Badges Section */}
           {(hasStreakBadge || hasTotalWorkoutsBadge) && (
@@ -328,3 +422,48 @@ export default function Home() {
     </>
   );
 }
+
+const homeStyles = StyleSheet.create({
+  pickSection: {
+    marginTop: 8,
+    marginBottom: 10,
+    gap: 8,
+  },
+  pickHint: {
+    color: '#AAA',
+    fontSize: 14,
+    marginBottom: 4,
+  },
+  pickCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#111',
+    borderColor: '#333',
+    borderWidth: 1,
+    padding: 12,
+  },
+  pickCardDisabled: {
+    opacity: 0.6,
+  },
+  pickCardLeft: {
+    flex: 1,
+  },
+  pickDay: {
+    color: '#999',
+    fontSize: 13,
+    marginBottom: 2,
+  },
+  pickTitle: {
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  manageLink: {
+    paddingVertical: 8,
+    alignItems: 'center',
+  },
+  manageLinkText: {
+    color: '#4DD4AC',
+    fontSize: 13,
+  },
+});

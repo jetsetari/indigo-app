@@ -18,6 +18,7 @@ import { addClientMeasurement, updateClient, appendDoneScreen } from '~/data/sup
 import { toastError, toastSuccess } from '~/data/helpers/toast';
 import useTranslation from '~/data/helpers/translation';
 import { useUserStore } from '~/data/store/userStore';
+import { logout } from '~/data/supabase/authHandler';
 import Loading from '~/components/Loading';
 
 import __base from '~/assets/styles/base';
@@ -25,28 +26,6 @@ import __base from '~/assets/styles/base';
 type MetricsValues = typeof metricsDefault;
 
 const API_BASE = 'https://indigo-backend-j5pl.onrender.com';
-
-async function urlToBase64(url: string): Promise<string> {
-  try {
-    const response = await fetch(url);
-    const blob = await response.blob();
-    
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const base64String = reader.result as string;
-        // Return just the base64 data without the data:image/jpeg;base64, prefix
-        const base64Data = base64String.split(',')[1];
-        resolve(base64Data);
-      };
-      reader.onerror = reject;
-      reader.readAsDataURL(blob);
-    });
-  } catch (error) {
-    console.error('Error converting URL to base64:', error);
-    throw new Error('Failed to convert image to base64');
-  }
-}
 
 export default function Metrics() {
   const navigation = useNavigation<any>();
@@ -100,20 +79,16 @@ export default function Metrics() {
     }
 
     try {
-      setLoading('Doing AI Estimate: Converting images...');
-      
-      // Convert image URLs to base64
-      const [frontBase64, sideBase64, backBase64] = await Promise.all([
-        urlToBase64(pictureFront),
-        urlToBase64(pictureSide),
-        urlToBase64(pictureBack),
-      ]);
-
+      // Backend expects publicly accessible image URLs (not base64).
       setLoading('Doing AI Estimate: Checking front, side, back photo');
       const res = await fetch(`${API_BASE}/estimate-bodyfat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ front: frontBase64, side: sideBase64, back: backBase64 }),
+        body: JSON.stringify({
+          front: pictureFront,
+          side: pictureSide,
+          back: pictureBack,
+        }),
       });
       const data = await res.json();
 
@@ -143,7 +118,14 @@ export default function Metrics() {
 
   return (
     <StickyHeader title={t.screenTitle}>
-      <HeaderWithExtra title={(t.header.title || '').replace('{{name}}', displayName)} subtitle={t.header.subtitle} image={avatarUrl}/>
+      <HeaderWithExtra
+        {...(isSettings
+          ? { back: 'Profile' }
+          : { onBack: () => logout(navigation) })}
+        title={(t.header.title || '').replace('{{name}}', displayName)}
+        subtitle={t.header.subtitle}
+        image={avatarUrl}
+      />
       <FormToggle control={control} name="metricSystem" options={[{ label: t.system.imperial, value: 'imperial' },{ label: t.system.metric, value: 'metric' }]} rules={validateMetrics.metricSystem} />
       <FormHorizontalPicker control={control} name="weight" label={t.weight.label} unit={unit} min={min} max={max} />
       <FormInput control={control} name="desiredWeight" label={t.weightGoal.label} placeholder="" type="number" required rules={validateMetrics.desiredWeight} />

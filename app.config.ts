@@ -6,7 +6,7 @@ const config: ExpoConfig = {
   name: 'Indigo',
   slug: 'indigo',
   scheme: 'indigo',
-  version: '1.0.9',
+  version: '1.1.1',
   orientation: "portrait",
   icon: "./src/assets/device/icon.png",
   userInterfaceStyle: "light",

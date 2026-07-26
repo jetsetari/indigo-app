@@ -7,7 +7,7 @@ import HeaderWithExtra from '~/components/Layout/HeaderWithExtra';
 import CustomButton from '~/components/Buttons/CustomButton';
 import Loading from '~/components/Loading';
 
-import { FormWeekDayList, FormSelectMulti, FormInput, FormDropdown } from '~/components/Form';
+import { FormHorizontalPicker, FormSelectMulti, FormInput, FormDropdown } from '~/components/Form';
 import { useRoute } from '@react-navigation/native';
 
 import { useUserStore } from '~/data/store/userStore';
@@ -16,18 +16,16 @@ import { toastError, toastSuccess } from '~/data/helpers/toast';
 import { updateClient, appendDoneScreen } from '~/data/supabase/clientsHandler';
 import { getLevelOptions, type ExperienceOption, type HoursOption } from '~/data/supabase/optionsDataHandler';
 
-import __base from '~/assets/styles/base';
-
 type FormValues = {
-  trainingDays: string[];          // ["MO","TU", ...]
-  experienceSlugs: string[];       // group_experience[]
-  trainingHistory: string;         // training_history (single)
-  trainingHours: number;           // 0.5 .. 5 (step 0.5)
+  sessionsPerWeek: number;             // 1 .. 7
+  experienceSlugs: string[];           // group_experience[]
+  trainingHistory: string;             // training_history (single)
+  trainingHours: number;               // 0.5 .. 5 (step 0.5)
   notes: string;
 };
 
 const defaultValues: FormValues = {
-  trainingDays: [],
+  sessionsPerWeek: 3,
   experienceSlugs: [],
   trainingHistory: '',
   trainingHours: 1,
@@ -43,7 +41,10 @@ export default function Level() {
   const isSettings = params?.mode === 'settings';
 
   const { control, handleSubmit } = useForm<FormValues>({
-    defaultValues,
+    defaultValues: {
+      ...defaultValues,
+      sessionsPerWeek: Number(client?.sessionsPerWeek ?? defaultValues.sessionsPerWeek),
+    },
     mode: 'onSubmit',
   });
 
@@ -83,7 +84,7 @@ export default function Level() {
   const onSubmit = useCallback(handleSubmit(async (values) => {
     try {
       await updateClient({
-        trainingDays: values.trainingDays?.length ? values.trainingDays : null,
+        sessionsPerWeek: values.sessionsPerWeek ?? null,
         groupExperience: values.experienceSlugs?.length ? values.experienceSlugs : null,
         trainingExperience: values.trainingHistory || null,
         trainingHours: values.trainingHours ?? null,
@@ -103,18 +104,19 @@ export default function Level() {
   return (
     <StickyHeader title={t?.screenTitle ?? 'Fitness Level'}>
       <HeaderWithExtra
-        //back={isSettings ? 'Profile' : 'Goals'}
+        back={isSettings ? 'Profile' : 'Goals'}
         title={t?.title ?? 'How would you rate'}
         subtitle={t?.subtitle ?? 'your current fitness level?'}
         image={avatarUrl}
       />
 
-      {/* Training days (array of day codes) */}
-      <FormWeekDayList
+      <FormHorizontalPicker
         control={control}
-        name="trainingDays"
-        label={t?.trainingDays?.label ?? 'Which days can you train?'}
-        // Add rules if you want: rules={{ validate: v => (Array.isArray(v) && v.length) || 'Pick at least one day' }}
+        name="sessionsPerWeek"
+        label={t?.trainingDays?.label ?? 'How many days do you train?'}
+        min={1}
+        max={7}
+        unit="days"
       />
 
       {/* Group experience (multi-select -> text[] in clients) */}

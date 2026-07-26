@@ -155,13 +155,13 @@ export const supplementOptions = [
 ];
 
 export const workouts = [
-  { label: 'Pull–Ups', value: 'pull-ups', slug: 'pull-ups', screen: 'Workouts', image: require('~/assets/images/dummy/workout-1.jpg') },
-  { label: 'Barbell Bench Press', value: 'barbell-bench', slug: 'barbell-bench-press', screen: 'Workouts', image: require('~/assets/images/dummy/workout-2.jpg') },
-  { label: 'One–Arm Dumbbell Row', value: 'one-arm', slug: 'one-arm-dumbbell-row', screen: 'Workouts', image: require('~/assets/images/dummy/workout-3.jpg') },
-  { label: 'Seated Shoulder Press (Dumbbell)', value: 'seated-shoulder', slug: 'seated-shoulder-press-dumbbell', screen: 'Workouts', image: require('~/assets/images/dummy/workout-1.jpg') },
-  { label: 'EZ Bar Bicep Curls', value: 'ez-bar', slug: 'ez-bar-bicep-curls', screen: 'Workouts', image: require('~/assets/images/dummy/workout-3.jpg') },
-  { label: 'Triceps Rope Pushdowns', value: 'triceps-rope', slug: 'triceps-rope-pushdowns', screen: 'Workouts', image: require('~/assets/images/dummy/workout-2.jpg') },
-  { label: 'Face Pulls', value: 'face-pulls', slug: 'face-pulls', screen: 'Workouts', image: require('~/assets/images/dummy/workout-1.jpg') },
+  { label: 'Pull–Ups', value: 'pull-ups', slug: 'pull-ups', screen: 'Schedule', image: require('~/assets/images/dummy/workout-1.jpg') },
+  { label: 'Barbell Bench Press', value: 'barbell-bench', slug: 'barbell-bench-press', screen: 'Schedule', image: require('~/assets/images/dummy/workout-2.jpg') },
+  { label: 'One–Arm Dumbbell Row', value: 'one-arm', slug: 'one-arm-dumbbell-row', screen: 'Schedule', image: require('~/assets/images/dummy/workout-3.jpg') },
+  { label: 'Seated Shoulder Press (Dumbbell)', value: 'seated-shoulder', slug: 'seated-shoulder-press-dumbbell', screen: 'Schedule', image: require('~/assets/images/dummy/workout-1.jpg') },
+  { label: 'EZ Bar Bicep Curls', value: 'ez-bar', slug: 'ez-bar-bicep-curls', screen: 'Schedule', image: require('~/assets/images/dummy/workout-3.jpg') },
+  { label: 'Triceps Rope Pushdowns', value: 'triceps-rope', slug: 'triceps-rope-pushdowns', screen: 'Schedule', image: require('~/assets/images/dummy/workout-2.jpg') },
+  { label: 'Face Pulls', value: 'face-pulls', slug: 'face-pulls', screen: 'Schedule', image: require('~/assets/images/dummy/workout-1.jpg') },
 ];
 
 

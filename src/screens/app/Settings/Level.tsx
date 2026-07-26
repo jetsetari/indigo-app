@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { View } from 'react-native';
 import { useForm } from 'react-hook-form';
-import { FormWeekDayList, FormSelectMulti, FormInput, FormDropdown } from '~/components/Form';
+import { FormHorizontalPicker, FormSelectMulti, FormInput, FormDropdown } from '~/components/Form';
 import { getLevelOptions, type ExperienceOption, type HoursOption } from '~/data/supabase/optionsDataHandler';
 import { updateClient } from '~/data/supabase/clientsHandler';
 import { toastError, toastSuccess } from '~/data/helpers/toast';
@@ -9,7 +9,7 @@ import { useUserStore } from '~/data/store/userStore';
 import CustomButton from '~/components/Buttons/CustomButton';
 
 type Values = {
-  trainingDays: string[];
+  sessionsPerWeek: number;
   experienceSlugs: string[];
   trainingHistory: string;
   trainingHours: number;
@@ -20,7 +20,7 @@ export default function LevelSettings() {
   const c = useUserStore(s=>s.client);
   const { control, handleSubmit } = useForm<Values>({
     defaultValues: {
-      trainingDays: c?.trainingDays ?? [],
+      sessionsPerWeek: Number(c?.sessionsPerWeek ?? 3),
       experienceSlugs: c?.groupExperience ?? [],
       trainingHistory: c?.trainingExperience ?? '',
       trainingHours: Number(c?.trainingHours ?? 1),
@@ -44,7 +44,7 @@ export default function LevelSettings() {
   const onSubmit = useCallback(handleSubmit(async v => {
     try {
       await updateClient({
-        trainingDays: v.trainingDays?.length ? v.trainingDays : null,
+        sessionsPerWeek: v.sessionsPerWeek ?? null,
         groupExperience: v.experienceSlugs?.length ? v.experienceSlugs : null,
         trainingExperience: v.trainingHistory || null,
         trainingHours: v.trainingHours ?? null,
@@ -56,7 +56,14 @@ export default function LevelSettings() {
 
   return (
     <View style={{ paddingBottom: 100 }}>
-      <FormWeekDayList control={control} name="trainingDays" label="Training days" />
+      <FormHorizontalPicker
+        control={control}
+        name="sessionsPerWeek"
+        label="How many days do you train?"
+        min={1}
+        max={7}
+        unit="days"
+      />
       <FormSelectMulti control={control} name="experienceSlugs" title="Experience" options={experience} />
       <FormInput control={control} name="notes" label="Notes" type="text" />
       <FormDropdown control={control} name="trainingHistory" label="Training history" options={historyDropdown} />

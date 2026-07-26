@@ -81,7 +81,7 @@ export default function Goals() {
   return (
     <StickyHeader title={t?.screenTitle ?? 'Goals'}>
       <HeaderWithExtra
-        //back={isSettings ? 'Profile' : 'Metrics'}
+        back={isSettings ? 'Profile' : 'Metrics'}
         title={"Let’s define your goals"}
         subtitle={t?.header.subtitle ?? 'Choose what applies.'}
         image={avatarUrl}

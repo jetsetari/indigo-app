@@ -79,7 +79,7 @@ export default function EatingHabits() {
   return (
     <StickyHeader title={t.screenTitle ?? 'Eating Habits'}>
       <HeaderWithExtra
-        //back={isSettings ? 'Profile' : 'Level'}
+        back={isSettings ? 'Profile' : 'Level'}
         title={t.header?.title ?? 'Eating Habits'}
         subtitle={t.header?.subtitle ?? 'Tell us about your nutrition'}
         image={avatarUrl}
@@ -90,8 +90,6 @@ export default function EatingHabits() {
         control={control}
         name="eatingHabits"
         label={t.sections?.eating ?? 'Your eating style'}
-        required
-        rules={[{ type: 'required', message: t.errors?.eatingRequired ?? 'Pick one option' }]}
         options={eatingOptions /* [{label, description, icon, value}] or adapt to {label, value} if using the simpler variant */}
       />
 

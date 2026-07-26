@@ -27,6 +27,7 @@ export type ClientRow = {
   avatarUrl: string | null;
   language: string | null;
   trainingDays: string[] | null;
+  sessionsPerWeek?: number | null;
   createdAt: string;
   metricSystem?: string;
   lastWeight?:number;

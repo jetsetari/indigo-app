@@ -28,10 +28,9 @@ export default function Login() {
   const onLogin = async ({ email, password }: LoginForm) => {
     try {
       const { next } = await signInAndGetNext(email, password);
-      console.log(next);
       navigation.navigate(next);
-    } catch (e:any) {
-      console.log(e);
+    } catch {
+      // toast shown in signInAndGetNext
     }
   };
 

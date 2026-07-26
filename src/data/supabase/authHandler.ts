@@ -27,9 +27,30 @@ export async function logout(navigation: any) {
   } catch (e) {
     console.warn('logout failed', e);
   } finally {
+    useUserStore.getState().reset?.();
     useUserStore.getState().setClient?.(null);
     navigation.reset({ index: 0, routes: [{ name: 'Start' }] });
   }
+}
+
+/** Permanently delete the signed-in user's account + related data, then sign out. */
+export async function deleteAccount(navigation: any) {
+  const { error } = await supabase.rpc('delete_own_account');
+  if (error) {
+    toastError('Delete failed', error.message || 'Could not delete your account.');
+    throw error;
+  }
+
+  try {
+    await supabase.auth.signOut();
+  } catch {
+    // Auth user may already be gone after the RPC.
+  }
+
+  useUserStore.getState().reset?.();
+  useUserStore.getState().setClient?.(null);
+  toastSuccess('Account deleted', 'Your account has been permanently deleted.');
+  navigation.reset({ index: 0, routes: [{ name: 'Start' }] });
 }
 
 export async function createAndLoginClient(form: any) {
@@ -49,6 +70,8 @@ export async function createAndLoginClient(form: any) {
   }
 
   const row = prepareClientRow(form);
+  if (user?.id) row.user_id = user.id;
+
   const { data: existing, error: selErr } = await supabase
     .from('clients').select('id').eq('email', email).maybeSingle();
   if (selErr) throw selErr;
@@ -108,7 +131,18 @@ export function nextIntakeRoute(done: string[] = []): string {
 // signIn helper now returns route name (Caps)
 export async function signInAndGetNext(email: string, password: string) {
   const { error } = await supabase.auth.signInWithPassword({ email, password });
-  if (error) throw error;
+  if (error) {
+    const isNetwork =
+      /network request failed/i.test(error.message ?? '') ||
+      error.name === 'AuthRetryableFetchError';
+    toastError(
+      t.toastFailTitle,
+      isNetwork
+        ? 'Network error. Check your connection and try again.'
+        : (error.message || t.toastFailBodyFallback),
+    );
+    throw error;
+  }
 
   const { data: { user } } = await supabase.auth.getUser();
   if (!user?.email) return { next: 'Start' as const };

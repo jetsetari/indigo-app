@@ -1,6 +1,9 @@
 // src/data/supabase/workoutsHandler.ts
+import dayjs from 'dayjs';
 import { supabase } from './connection';
 import { MuscleGroup, Exercise, WorkoutItem, WorkoutDay, WorkoutWeek, WorkoutProgram } from '../types';
+import { getLogsForDate } from './clientWorkoutLogsHandler';
+import { deleteSchedule, upsertWorkoutSchedule } from './workoutSchedulesHandler';
 
 /** ---------- Public API ---------- */
 
@@ -348,6 +351,84 @@ export async function updateWorkoutDayDate(dayId: number, newDate: string) {
     .eq('id', dayId);
 
   if (error) throw error;
+}
+
+/** Monday (YYYY-MM-DD) of the calendar week containing isoDate. */
+export function getWeekMonday(isoDate: string): string {
+  const d = dayjs(isoDate);
+  return d.subtract((d.day() + 6) % 7, 'day').format('YYYY-MM-DD');
+}
+
+function isWorkoutDayComplete(
+  items: WorkoutItem[],
+  logsCountByItem: Map<number, number>
+): boolean {
+  if (!items.length) return false;
+  return items.every((item) => {
+    const repsArray = item.reps
+      ? item.reps.split(',').map((s) => s.trim()).filter(Boolean)
+      : [];
+    const totalSets = Math.max(repsArray.length, item.sets ?? 1);
+    const loggedSets = logsCountByItem.get(item.id) ?? 0;
+    return loggedSets >= totalSets;
+  });
+}
+
+export type SelectableWeekWorkout = {
+  id: number;
+  title: string | null;
+  date: string;
+  coverImage?: string | null;
+};
+
+/**
+ * Incomplete workouts in the current calendar week (excluding today),
+ * ordered by date, capped at `limit` (default 3). Used when Home has no workout today.
+ */
+export async function fetchSelectableWeekWorkouts(
+  clientId: number,
+  todayISO: string,
+  limit = 3
+): Promise<SelectableWeekWorkout[]> {
+  const weekStart = getWeekMonday(todayISO);
+  const weekEnd = dayjs(weekStart).add(6, 'day').format('YYYY-MM-DD');
+
+  const days = await fetchWorkoutsByDateRange(clientId, weekStart, weekEnd);
+  const candidates = days.filter((d) => d.date !== todayISO);
+
+  const available: SelectableWeekWorkout[] = [];
+  for (const day of candidates) {
+    const logs = await getLogsForDate(clientId, day.date);
+    if (isWorkoutDayComplete(day.items ?? [], logs)) continue;
+    available.push({
+      id: day.id,
+      title: day.title,
+      date: day.date,
+      coverImage: day.coverImage ?? null,
+    });
+    if (available.length >= limit) break;
+  }
+  return available;
+}
+
+/**
+ * Move a workout day onto `toDate` and keep workout_schedules in sync.
+ */
+export async function moveWorkoutToDate(
+  clientId: number,
+  dayId: number,
+  fromDate: string,
+  toDate: string
+) {
+  await updateWorkoutDayDate(dayId, toDate);
+  if (fromDate !== toDate) {
+    await deleteSchedule(fromDate, clientId);
+  }
+  await upsertWorkoutSchedule({
+    clientId,
+    workoutDayId: dayId,
+    isoDate: toDate,
+  });
 }
 
 /** Fetch one workout day with its items + exercises (+ muscle group). */

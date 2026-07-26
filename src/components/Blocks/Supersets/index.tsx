@@ -69,7 +69,7 @@ export default function Supersets({ items, selectedDate }: Props) {
         itemsAll,
         idxAll,
         readonly: true,
-        returnTo: 'Workouts',
+        returnTo: 'Schedule',
         date: selectedDate,
       });
     } else {
@@ -80,7 +80,7 @@ export default function Supersets({ items, selectedDate }: Props) {
         supersetNum,
         itemsAll,
         idxAll,
-        returnTo: 'Workouts',
+        returnTo: 'Schedule',
       });
     }
   };

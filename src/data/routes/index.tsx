@@ -54,6 +54,7 @@ export type RootStackParamList = {
   Exercise: undefined;
   LogExercise: undefined;
   Workouts: undefined;
+  Schedule: undefined;
   Stats: undefined;
   Profile: undefined;
   ChangePassword: undefined;

@@ -1,11 +1,12 @@
 // src/screens/app/Workouts/ScheduleWorkout.tsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, Image, TouchableOpacity, StyleSheet } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import dayjs from 'dayjs';
 import { Feather } from '@expo/vector-icons';
 
 import StickyHeader from '~/components/Layout/StickyHeader';
+import WhiteRefreshControl from '~/components/Layout/WhiteRefreshControl';
 import IconButton from '~/components/Buttons/IconButton';
 import CustomButton from '~/components/Buttons/CustomButton';
 import Loading from '~/components/Loading';
@@ -22,22 +23,8 @@ type WorkoutDayItem = {
   dateFormatted: string;
 };
 
-export default function ScheduleWorkout() {
-  const navigation = useNavigation<any>();
-  const route = useRoute<any>();
-  const client = useUserStore((s) => s.client);
-  const selectedDate = route.params?.isoDate || dayjs().format('YYYY-MM-DD');
-
-  const [loading, setLoading] = useState(true);
-  const [workouts, setWorkouts] = useState<WorkoutDayItem[]>([]);
-  const [selectedWorkoutIndex, setSelectedWorkoutIndex] = useState<number | null>(null);
-  const [weekStart, setWeekStart] = useState(() => {
-    // Get Monday of the week containing selectedDate
-    return dayjs(selectedDate).startOf('week').add(1, 'day').format('YYYY-MM-DD');
-  });
-
-  // Generate week days (Monday to Sunday)
-  const weekDays = Array.from({ length: 7 }, (_, i) => {
+function buildWeekDays(weekStart: string) {
+  return Array.from({ length: 7 }, (_, i) => {
     const date = dayjs(weekStart).add(i, 'day');
     return {
       iso: date.format('YYYY-MM-DD'),
@@ -45,16 +32,29 @@ export default function ScheduleWorkout() {
       dateFormatted: date.format('DD-MM-YYYY'),
     };
   });
+}
 
-  useEffect(() => {
-    if (!client?.id) return;
-    loadWorkouts();
-  }, [client?.id, weekStart]);
+export default function ScheduleWorkout() {
+  const navigation = useNavigation<any>();
+  const route = useRoute<any>();
+  const client = useUserStore((s) => s.client);
+  const selectedDate = route.params?.isoDate || dayjs().format('YYYY-MM-DD');
 
-  const loadWorkouts = async () => {
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [workouts, setWorkouts] = useState<WorkoutDayItem[]>([]);
+  const [selectedWorkoutIndex, setSelectedWorkoutIndex] = useState<number | null>(null);
+  const [weekStart, setWeekStart] = useState(() => {
+    // Get Monday of the week containing selectedDate
+    return dayjs(selectedDate).startOf('week').add(1, 'day').format('YYYY-MM-DD');
+  });
+
+  const loadWorkouts = useCallback(async (opts?: { refresh?: boolean }) => {
     if (!client?.id) return;
-    setLoading(true);
+    if (opts?.refresh) setRefreshing(true);
+    else setLoading(true);
     try {
+      const days = buildWeekDays(weekStart);
       const fromDate = weekStart;
       const toDate = dayjs(weekStart).add(6, 'day').format('YYYY-MM-DD');
       const fetchedWorkouts = await fetchWorkoutsByDateRange(client.id, fromDate, toDate);
@@ -73,7 +73,7 @@ export default function ScheduleWorkout() {
       });
 
       // Create array with all 7 days, filling in workouts where they exist
-      const weekWorkouts: WorkoutDayItem[] = weekDays.map((day) => {
+      const weekWorkouts: WorkoutDayItem[] = days.map((day) => {
         const existing = workoutsByDate.get(day.iso);
         if (existing) {
           return existing;
@@ -90,12 +90,23 @@ export default function ScheduleWorkout() {
       });
 
       setWorkouts(weekWorkouts);
+      setSelectedWorkoutIndex(null);
     } catch (error) {
       console.error('Error loading workouts:', error);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
-  };
+  }, [client?.id, weekStart]);
+
+  useEffect(() => {
+    if (!client?.id) return;
+    loadWorkouts();
+  }, [client?.id, weekStart, loadWorkouts]);
+
+  const onRefresh = useCallback(() => {
+    loadWorkouts({ refresh: true });
+  }, [loadWorkouts]);
 
   const handleMoveWorkout = async (fromIndex: number, toIndex: number) => {
     if (fromIndex === toIndex) {
@@ -104,7 +115,7 @@ export default function ScheduleWorkout() {
     }
 
     const newWorkouts = [...workouts];
-    const targetDates = Array.from({ length: 7 }, (_, i) => 
+    const targetDates = Array.from({ length: 7 }, (_, i) =>
       dayjs(weekStart).add(i, 'day').format('YYYY-MM-DD')
     );
 
@@ -116,7 +127,7 @@ export default function ScheduleWorkout() {
     if (fromItem.id > 0 && toItem.id > 0) {
       // Swap: move fromItem to toIndex, move toItem to fromIndex
       const fromTargetDate = targetDates[fromIndex];
-      
+
       // Update both workouts
       try {
         await Promise.all([
@@ -132,7 +143,7 @@ export default function ScheduleWorkout() {
         newWorkouts[toIndex].date = targetDate;
         newWorkouts[toIndex].dateFormatted = dayjs(targetDate).format('DD-MM-YYYY');
         newWorkouts[toIndex].dayName = dayjs(targetDate).format('dddd');
-        
+
         setWorkouts(newWorkouts);
       } catch (error) {
         console.error('Error swapping workouts:', error);
@@ -142,7 +153,7 @@ export default function ScheduleWorkout() {
       // Moving workout to empty slot
       try {
         await updateWorkoutDayDate(fromItem.id, targetDate);
-        
+
         // Move in local state
         newWorkouts[toIndex] = { ...fromItem, date: targetDate, dateFormatted: dayjs(targetDate).format('DD-MM-YYYY'), dayName: dayjs(targetDate).format('dddd') };
         newWorkouts[fromIndex] = {
@@ -153,7 +164,7 @@ export default function ScheduleWorkout() {
           dayName: dayjs(targetDates[fromIndex]).format('dddd'),
           dateFormatted: dayjs(targetDates[fromIndex]).format('DD-MM-YYYY'),
         };
-        
+
         setWorkouts(newWorkouts);
       } catch (error) {
         console.error('Error moving workout:', error);
@@ -241,7 +252,17 @@ export default function ScheduleWorkout() {
 
   return (
     <>
-      <StickyHeader title="Schedule workout" noSticky>
+      <StickyHeader
+        title="Schedule workout"
+        noSticky
+        refreshing={refreshing}
+        refreshControl={
+          <WhiteRefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+          />
+        }
+      >
         <View style={[__base.paddingHorizontal, { paddingTop: 70, paddingBottom: 20 }]}>
           <View style={styles.headerRow}>
             <IconButton onPress={() => navigation.goBack()} icon="chevron-back" />
@@ -257,14 +278,14 @@ export default function ScheduleWorkout() {
               </Text>
             </View>
           )}
-          <View style={styles.workoutsContainer}> 
+          <View style={styles.workoutsContainer}>
             {workouts.map((item, index) => (
               <View key={item.date}>
                 {renderDayCard(item, index)}
               </View>
             ))}
           </View>
-    
+
           <CustomButton
             title="Save"
             backgroundColor="#000"
@@ -385,4 +406,3 @@ const styles = StyleSheet.create({
     padding: 4,
   },
 });
-

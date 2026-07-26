@@ -3,7 +3,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
-  Text,
   StyleSheet,
   Animated,
 } from 'react-native';
@@ -12,6 +11,7 @@ export type TimerBarProps = {
   maxTime?: number;
   paused?: boolean;
   onDone?: () => void;
+  onRemainingChange?: (remaining: number) => void;
 };
 
 const BAR_CONTAINER_HEIGHT = 400;
@@ -20,48 +20,63 @@ export default function TimerBar({
   maxTime = 10,
   paused = false,
   onDone,
+  onRemainingChange,
 }: TimerBarProps) {
   const [remaining, setRemaining] = useState(maxTime);
-  const [repsLeft, setRepsLeft]   = useState(maxTime);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const doneRef = useRef(false);
+  const onDoneRef = useRef(onDone);
+  const onRemainingChangeRef = useRef(onRemainingChange);
 
-  // Animated value, initialized to full height
   const animatedHeight = useRef(
     new Animated.Value(BAR_CONTAINER_HEIGHT)
   ).current;
 
-  // Core countdown logic
   useEffect(() => {
-    if (paused || repsLeft <= 0) return;
+    onDoneRef.current = onDone;
+  }, [onDone]);
+
+  useEffect(() => {
+    onRemainingChangeRef.current = onRemainingChange;
+  }, [onRemainingChange]);
+
+  // Reset when maxTime changes (new exercise / set)
+  useEffect(() => {
+    doneRef.current = false;
+    setRemaining(maxTime);
+    onRemainingChangeRef.current?.(maxTime);
+    animatedHeight.setValue(BAR_CONTAINER_HEIGHT);
+  }, [maxTime, animatedHeight]);
+
+  useEffect(() => {
+    if (paused || doneRef.current) return;
 
     intervalRef.current = setInterval(() => {
-      setRemaining(prev => {
-        if (prev <= 1) {
-          clearInterval(intervalRef.current!);
-          setRepsLeft(r => {
-            const next = r - 1;
-            if (next <= 0) onDone?.();
-            return next;
-          });
-          return maxTime;
+      setRemaining((prev) => {
+        if (prev <= 0) return 0;
+        const next = prev - 1;
+        onRemainingChangeRef.current?.(next);
+        if (next <= 0) {
+          doneRef.current = true;
+          if (intervalRef.current) clearInterval(intervalRef.current);
+          onDoneRef.current?.();
         }
-        return prev - 1;
+        return next;
       });
     }, 1000);
 
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
-  }, [paused, repsLeft, maxTime, onDone]);
+  }, [paused, maxTime]);
 
-  // Whenever `remaining` changes, animate the height
   useEffect(() => {
-    const newHeight = (remaining / maxTime) * BAR_CONTAINER_HEIGHT;
+    const newHeight = maxTime > 0 ? (remaining / maxTime) * BAR_CONTAINER_HEIGHT : 0;
 
     Animated.timing(animatedHeight, {
       toValue: newHeight,
       duration: 500,
-      useNativeDriver: false,  // height can’t be driven natively
+      useNativeDriver: false,
     }).start();
   }, [remaining, maxTime, animatedHeight]);
 
@@ -72,7 +87,6 @@ export default function TimerBar({
           style={[styles.bar, { height: animatedHeight }]}
         />
       </View>
-      {/*<Text style={styles.reps}>{repsLeft} Left</Text>*/}
     </View>
   );
 }
@@ -98,10 +112,5 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFF',
     position: 'absolute',
     bottom: 0,
-  },
-  reps: {
-    color: '#FFF',
-    fontSize: 18,
-    marginTop: 8,
   },
 });
