@@ -37,7 +37,7 @@ type Params = {
   item: WorkoutItem; 
   setIndex: number; 
   supersetNum: number;
-  returnTo?: 'Home' | 'Workouts'; // Track where we came from
+  returnTo?: 'Home' | 'Schedule'; // Track where we came from
 };
 
 export default function Exercise() {
@@ -46,7 +46,7 @@ export default function Exercise() {
   const item: WorkoutItem = params?.item;
   const setIndex: number = params?.setIndex ?? 0;
   const supersetNum: number = params?.supersetNum ?? 1;
-  const returnTo: 'Home' | 'Workouts' | undefined = params?.returnTo;
+  const returnTo: 'Home' | 'Schedule' | undefined = params?.returnTo;
 
   // Use custom_exercise_name if available, otherwise fall back to exercise.name
   const title = (item?.customExerciseName?.trim() || item?.exercise?.name) ?? 'Exercise';
@@ -63,11 +63,17 @@ export default function Exercise() {
 
   const [isPlaying, setIsPlaying] = useState(false);
   const [hasStarted, setHasStarted] = useState(false);
+  const [remainingSeconds, setRemainingSeconds] = useState<number | null>(null);
 
   const token = repsForSet(item, setIndex);
   const seconds = tokenToSeconds(token);
+  const displaySeconds = remainingSeconds ?? seconds;
 
-  const start = () => { setIsPlaying(true); setHasStarted(true); };
+  const start = () => {
+    if (seconds != null && remainingSeconds == null) setRemainingSeconds(seconds);
+    setIsPlaying(true);
+    setHasStarted(true);
+  };
   const pause = () => setIsPlaying(false);
   const done  = () => {
     const todayISO = new Date().toISOString().slice(0, 10);
@@ -97,6 +103,13 @@ export default function Exercise() {
     });
   };
 
+  const secondsBlock = !!seconds && (
+    <View style={{ flex: 1 }}>
+      <Text style={__base.textLabel}>seconds</Text>
+      <Text style={__base.textInfo}>{displaySeconds}</Text>
+    </View>
+  );
+
   return (
     <FullBleed
       backgroundUri={headerImg}
@@ -121,12 +134,7 @@ export default function Exercise() {
                   <Text style={__base.textInfo}>{formatToken(String(token))}</Text>
                 </View>
               )}
-              {!!seconds && (
-                <View style={{ flex: 1 }}>
-                  <Text style={__base.textLabel}>seconds</Text>
-                  <Text style={__base.textInfo}>{seconds}</Text>
-                </View>
-              )}
+              {secondsBlock}
               {showWeight && (
                 <View style={{ flex: 1 }}>
                   <Text style={__base.textLabel}>weight</Text>
@@ -152,12 +160,7 @@ export default function Exercise() {
                   <Text style={__base.textInfo}>{formatToken(String(token))}</Text>
                 </View>
               )}
-              {!!seconds && (
-                <View style={{ flex: 1 }}>
-                  <Text style={__base.textLabel}>seconds</Text>
-                  <Text style={__base.textInfo}>{seconds}</Text>
-                </View>
-              )}
+              {secondsBlock}
               {showWeight && (
                 <View style={{ flex: 1 }}>
                   <Text style={__base.textLabel}>weight</Text>
@@ -207,7 +210,12 @@ export default function Exercise() {
       )}
 
       {!!seconds && hasStarted && (
-        <TimerBar maxTime={seconds} paused={!isPlaying} onDone={done} />
+        <TimerBar
+          maxTime={seconds}
+          paused={!isPlaying}
+          onDone={done}
+          onRemainingChange={setRemainingSeconds}
+        />
       )}
     </FullBleed>
   );

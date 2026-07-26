@@ -5,6 +5,7 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import type { Session, User } from '@supabase/supabase-js';
 import type { ClientRow } from '~/data/types';
 import { getSupabase } from '../supabase/connection';
+import { snakeToCamel } from '../helpers';
 
 type AuthSlice = {
   session: Session | null;
@@ -35,9 +36,34 @@ export const useUserStore = create<UserStore>()(
       hydrateFromSupabase: async () => {
         const supabase = getSupabase();
         const { data } = await supabase.auth.getSession();
-        if (data.session) {
-          set({ session: data.session, user: data.session.user });
-          // Optionally fetch the client by email or metadata here if needed
+        if (!data.session) return;
+
+        set({ session: data.session, user: data.session.user });
+
+        const email = data.session.user?.email;
+        const userId = data.session.user?.id;
+        let clientRow = null as any;
+
+        if (email) {
+          const { data: byEmail } = await supabase
+            .from('clients')
+            .select('*')
+            .eq('email', email)
+            .maybeSingle();
+          clientRow = byEmail;
+        }
+
+        if (!clientRow && userId) {
+          const { data: byUser } = await supabase
+            .from('clients')
+            .select('*')
+            .eq('user_id', userId)
+            .maybeSingle();
+          clientRow = byUser;
+        }
+
+        if (clientRow) {
+          set({ client: snakeToCamel(clientRow) as ClientRow });
         }
       },
 

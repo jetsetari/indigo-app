@@ -29,12 +29,12 @@ const i18n = {
       subtitle: 'Let’s kick things off',
       firstName: {
         label: 'First Name',
-        placeholder: 'Your legendary first name here',
+        placeholder: 'Enter your first name',
         required: 'First name is required',
       },
       lastName: {
         label: 'Last Name',
-        placeholder: 'The last name your gym buddies yell',
+        placeholder: 'Enter your last name',
         required: 'Last name is required',
       },
       dob: {
@@ -164,7 +164,7 @@ const i18n = {
       screenTitle: 'Fitness Level',
       title: 'How would you rate',
       subtitle: 'your current fitness level?',
-      trainingDays: { label: 'Which days can you train?' },
+      trainingDays: { label: 'How many days do you train?' },
       experience: { label: 'Training and Goals' },
       notes: {
         label: 'Got more to share?',

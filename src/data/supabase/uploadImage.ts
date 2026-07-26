@@ -1,8 +1,6 @@
 // src/data/supabase/uploadImage.ts
 import { supabase } from './connection';
-import * as MediaLibrary from 'expo-media-library';
-import * as FileSystem from 'expo-file-system';
-import { decode as base64ToArrayBuffer } from 'base64-arraybuffer';
+import { File } from 'expo-file-system';
 import { resizeToBoundingBox } from '../helpers/imageResizer';
 
 type Args = {
@@ -22,7 +20,6 @@ export async function uploadImage({
   contentType,
   makePublic = true,
 }: Args): Promise<string | null> {
-
   const { uri: scaledUri } = await resizeToBoundingBox(uri, 1200, 0.82);
   const resolved = await resolveLocalFileUri(scaledUri);
 
@@ -31,12 +28,9 @@ export async function uploadImage({
   const ext = extFromName || extFromUri;
   const finalContentType = contentType || guessContentType(ext);
 
-
-
   const safeName = ensureExt(sanitize(filename), ext);
   const safePath = joinPath(sanitize(filepath), safeName);
 
-  // --- read bytes (blob → arrayBuffer OR base64 fallback) ---
   const arrayBuffer = await readAsArrayBuffer(resolved);
 
   const { error: uploadErr } = await supabase.storage
@@ -55,62 +49,50 @@ export async function uploadImage({
   if (makePublic) {
     const { data } = supabase.storage.from(bucket).getPublicUrl(safePath);
     return data.publicUrl ?? null;
-  } else {
-    const { data, error } = await supabase.storage.from(bucket).createSignedUrl(safePath, 60 * 60);
-    if (error) return null;
-    return data.signedUrl ?? null;
   }
+
+  const { data, error } = await supabase.storage.from(bucket).createSignedUrl(safePath, 60 * 60);
+  if (error) return null;
+  return data.signedUrl ?? null;
 }
-
-async function uriToBlob(uri: string): Promise<Blob> {
-  const res = await fetch(uri);
-  return await res.blob();
-}
-type UploadOpts = {
-  uri: string;
-  bucket?: string;              // default 'files'
-  folder?: string;              // e.g. 'clients'
-  filename?: string;            // without extension -> we'll add .jpg
-  maxEdge?: number;             // default 1200
-  compress?: number;            // 0..1 (default 0.82)
-};
-
-
 
 /* ------------------------------- helpers -------------------------------- */
 
 async function readAsArrayBuffer(localUri: string): Promise<ArrayBuffer> {
-  // Try fetch → blob → arrayBuffer first
+  try {
+    const file = new File(localUri);
+    return await file.arrayBuffer();
+  } catch {
+    // fall through to fetch
+  }
+
   try {
     const res = await fetch(localUri);
-    // @ts-ignore - RN Blob sometimes lacks arrayBuffer; guard below
-    const blob: Blob = await res.blob();
-    // @ts-ignore
+    const blob = await res.blob();
     if (typeof blob.arrayBuffer === 'function') {
-      // @ts-ignore
       return await blob.arrayBuffer();
     }
-    // fall through to base64 path if not available
   } catch {
     // fall through
   }
 
-  // Fallback: read file as base64 and convert to ArrayBuffer
-  const base64 = await FileSystem.readAsStringAsync(localUri, {
-    encoding: FileSystem.EncodingType.Base64,
-  });
-  return base64ToArrayBuffer(base64);
+  throw new Error('Unable to read image bytes for upload');
 }
 
 async function resolveLocalFileUri(uri: string): Promise<string> {
-  if (uri.startsWith('ph://')) {
+  if (!uri.startsWith('ph://')) return uri;
+
+  // Lazy-load so Expo Go doesn't warn about media-library on every ImageUpload mount.
+  try {
+    const MediaLibrary = await import('expo-media-library');
     const assetId = uri.replace('ph://', '');
-    try {
-      const info = await MediaLibrary.getAssetInfoAsync(assetId);
-      if (info.localUri) return info.localUri; // file://…
-      if (info.uri) return info.uri;
-    } catch {}
+    const info = await MediaLibrary.getAssetInfoAsync(assetId);
+    if (info.localUri) return info.localUri;
+    if (info.uri) return info.uri;
+  } catch {
+    // keep original uri
   }
+
   return uri;
 }
 
@@ -122,12 +104,17 @@ function getExt(path: string): string | null {
 function guessContentType(ext?: string | null) {
   switch ((ext || '').toLowerCase()) {
     case 'jpg':
-    case 'jpeg': return 'image/jpeg';
-    case 'png':  return 'image/png';
-    case 'webp': return 'image/webp';
+    case 'jpeg':
+      return 'image/jpeg';
+    case 'png':
+      return 'image/png';
+    case 'webp':
+      return 'image/webp';
     case 'heic':
-    case 'heif': return 'image/heic';
-    default:     return 'application/octet-stream';
+    case 'heif':
+      return 'image/heic';
+    default:
+      return 'application/octet-stream';
   }
 }
 

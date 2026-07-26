@@ -19,7 +19,7 @@ export function mapItemsToOptions(items: any[]): SelectOption[] {
       value: String(it.id),
       slug: `ex-${it.id}`,
       image: ex?.cover ? { uri: ex.cover } : undefined,
-      screen: 'Workouts'
+      screen: 'Schedule'
     };
   });
 }

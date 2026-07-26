@@ -69,15 +69,17 @@ export default function FormImageUpload<T extends FieldValues = FieldValues>({
   async function launch(kind: 'camera' | 'library', onChange: (url: string | null) => void) {
     if (!(await ensurePermissions(kind))) return;
 
-    const hasNewAPI = 'MediaType' in ImagePicker;
-    const mediaTypes = hasNewAPI
-      ? [ (ImagePicker as any).MediaType.Images ]
-      : (ImagePicker as any).MediaTypeOptions.Images;
+    // Expo SDK 54+: MediaType is a string union ('images' | 'videos' | 'livePhotos'),
+    // not ImagePicker.MediaTypeOptions (deprecated).
+    const pickerOptions: ImagePicker.ImagePickerOptions = {
+      mediaTypes: ['images'],
+      quality: 1,
+    };
 
     const result =
       kind === 'camera'
-        ? await ImagePicker.launchCameraAsync({ quality: 1 })
-        : await ImagePicker.launchImageLibraryAsync({ mediaTypes: mediaTypes as any, quality: 1 });
+        ? await ImagePicker.launchCameraAsync(pickerOptions)
+        : await ImagePicker.launchImageLibraryAsync(pickerOptions);
 
     if (!result.canceled && result.assets?.length) {
       await doUpload(result.assets[0].uri, onChange);

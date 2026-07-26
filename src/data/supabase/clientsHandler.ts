@@ -45,6 +45,60 @@ export async function fetchClientByUserId(userId: string) {
   return snakeToCamel(data);
 }
 
+export async function fetchClientById(id: string) {
+  const { data, error } = await supabase.from('clients').select('*').eq('id', id).single();
+  if (error) throw error;
+  return snakeToCamel(data);
+}
+
+/** Resolve which client row to update — prefer id, then email, then auth user. */
+async function resolveClientIdentity(patch?: { email?: string; id?: string }) {
+  const store = useUserStore.getState();
+  const clientId = patch?.id ?? store.client?.id ?? undefined;
+  let email =
+    patch?.email ??
+    store.client?.email ??
+    store.user?.email ??
+    undefined;
+
+  if (!email) {
+    const { data: { user } } = await supabase.auth.getUser();
+    email = user?.email ?? undefined;
+  }
+
+  if (clientId) {
+    return { id: clientId as string, email: email as string | undefined };
+  }
+
+  if (email) {
+    const { data, error } = await supabase
+      .from('clients')
+      .select('id, email')
+      .eq('email', email)
+      .maybeSingle();
+    if (error) throw error;
+    if (data?.id) return { id: data.id as string, email: (data.email ?? email) as string };
+  }
+
+  const { data: { user } } = await supabase.auth.getUser();
+  if (user?.id) {
+    const { data, error } = await supabase
+      .from('clients')
+      .select('id, email')
+      .eq('user_id', user.id)
+      .maybeSingle();
+    if (error) throw error;
+    if (data?.id) {
+      return {
+        id: data.id as string,
+        email: (data.email ?? user.email ?? email) as string | undefined,
+      };
+    }
+  }
+
+  throw new Error('No email available to update client');
+}
+
 export async function saveClient(data: any) {
   if (!data?.email) throw new Error('email is required');
   const row = prepareClientRow(data);
@@ -70,8 +124,7 @@ export async function saveClient(data: any) {
 
 export async function updateClient(patch: any) {
   const store = useUserStore.getState();
-  const email = patch?.email ?? store?.client?.email;
-  if (!email) throw new Error('No email available to update client');
+  const { id, email } = await resolveClientIdentity(patch);
 
   // Build row from your existing mapper
   const built = prepareClientRow(patch);
@@ -79,24 +132,25 @@ export async function updateClient(patch: any) {
   // 1) Strip undefined so we never send them to Supabase
   const row = stripUndefined(built);
 
+  // Never overwrite primary keys via patch accidentally
+  delete (row as any).id;
+  delete (row as any).user_id;
+
   // 2) Protect avatar_url: only include it if caller explicitly provided it in patch
-  if (!Object.prototype.hasOwnProperty.call(patch, 'avatar_url')) {
+  if (
+    !Object.prototype.hasOwnProperty.call(patch, 'avatar_url') &&
+    !Object.prototype.hasOwnProperty.call(patch, 'avatarUrl')
+  ) {
     delete (row as any).avatar_url;
   }
   // (If you pass avatar_url: null in patch, it WILL clear it in DB, by design.)
 
-  const { data: existing, error: selErr } = await supabase
-    .from('clients')
-    .select('id')
-    .eq('email', email)
-    .maybeSingle();
-  if (selErr) throw selErr;
-  if (!existing?.id) throw new Error('Client not found for update');
-
-  const { error } = await supabase.from('clients').update(row).eq('id', existing.id);
+  const { error } = await supabase.from('clients').update(row).eq('id', id);
   if (error) throw error;
 
-  const client = await fetchClientByEmail(email);
+  const client = email
+    ? await fetchClientByEmail(email)
+    : await fetchClientById(id);
   store.setClient?.(client);
   return client;
 }

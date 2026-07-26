@@ -30,7 +30,7 @@ export default function SelectWorkout() {
   const [loading, setLoading] = useState(true);
 
   const { params } = useRoute<any>();
-  const returnTo: 'Home' | 'Workouts' = params?.returnTo ?? 'Home';
+  const returnTo: 'Home' | 'Schedule' = params?.returnTo ?? 'Home';
   const pickedISO: string | undefined = params?.isoDate;
 
   const { control, setValue } = useForm<SelectForm>({

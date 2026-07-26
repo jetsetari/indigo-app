@@ -20,7 +20,7 @@ type Params = {
   supersetNum: number;
   itemsAll?: WorkoutItem[];   // full ordered list for the day
   idxAll?: number;            // current global index
-  returnTo?: 'Home' | 'Workouts'; // Track where we came from
+  returnTo?: 'Home' | 'Schedule'; // Track where we came from
   date?: string;              // ISO date string (YYYY-MM-DD)
 };
 
@@ -40,7 +40,7 @@ export default function LogExercise() {
   const list: WorkoutItem[] = params?.itemsInSuperset ?? [];
   const readOnly: boolean = !!params?.readonly;
   const itemsAll: WorkoutItem[] = params?.itemsAll ?? [];
-  const returnTo: 'Home' | 'Workouts' | undefined = params?.returnTo;
+  const returnTo: 'Home' | 'Schedule' | undefined = params?.returnTo;
 
   const idx: number = params?.idxInSuperset ?? Math.max(0, list.findIndex(x => x?.id === item?.id));
 

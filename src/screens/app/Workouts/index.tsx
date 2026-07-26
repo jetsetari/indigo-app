@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import dayjs from 'dayjs';
 import { View, Dimensions, Text } from 'react-native';
 import StickyHeader from '~/components/Layout/StickyHeader';
+import WhiteRefreshControl from '~/components/Layout/WhiteRefreshControl';
 import __base from '~/assets/styles/base';
 import BottomTabs from '~/components/Layout/BottomTabs';
 import SelectWeek from '~/components/Blocks/SelectWeek';
@@ -29,6 +30,7 @@ export default function Workouts() {
   const trainingDays = client?.trainingDays ? client.trainingDays : []; 
   const [loadingWeek, setLoadingWeek] = useState(false);
   const [loadingDay, setLoadingDay] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   const countSetsFromReps = (reps?: string | null) => {
     if (!reps) return 1;
@@ -44,29 +46,42 @@ export default function Workouts() {
   const clientId = client?.id;
   const displayName = client?.firstName ?? '';
 
-  useEffect(() => {
+  const loadWeekStatus = useCallback(async (opts?: { silent?: boolean }) => {
     if (!client?.id) return;
-    (async () => {
-      setLoadingWeek(true);
-      try {
-        const map = await buildWeekStatus(client.id, weekStart);
-        setStatusByDate(map);
-      } finally {
-        setLoadingWeek(false);
-      }
-    })();
+    if (!opts?.silent) setLoadingWeek(true);
+    try {
+      const map = await buildWeekStatus(client.id, weekStart);
+      setStatusByDate(map);
+    } finally {
+      if (!opts?.silent) setLoadingWeek(false);
+    }
   }, [client?.id, weekStart]);
 
-  const loadSelectedDay = useCallback(async () => {
+  useEffect(() => {
     if (!client?.id) return;
-    setLoadingDay(true);
+    loadWeekStatus();
+  }, [client?.id, weekStart, loadWeekStatus]);
+
+  const loadSelectedDay = useCallback(async (opts?: { silent?: boolean }) => {
+    if (!client?.id) return;
+    if (!opts?.silent) setLoadingDay(true);
     try {
       const day = await fetchDayByDate(client.id, selectedDate);
       setSelectedDay(day);
     } finally {
-      setLoadingDay(false);
+      if (!opts?.silent) setLoadingDay(false);
     }
   }, [selectedDate, client?.id]);
+
+  const loadLogs = useCallback(async () => {
+    if (!client?.id || !selectedDate) return;
+    try {
+      const counts = await getLogsForDate(client.id, selectedDate);
+      setLogsCountByItem(counts);
+    } catch (error) {
+      console.error('Error loading logs:', error);
+    }
+  }, [client?.id, selectedDate]);
 
   useEffect(() => {
     loadSelectedDay();
@@ -87,34 +102,27 @@ export default function Workouts() {
     return () => { alive = false; };
   }, [client?.id, selectedDate]);
 
+  const onRefresh = useCallback(async () => {
+    if (!client?.id) return;
+    setRefreshing(true);
+    try {
+      await Promise.all([
+        loadWeekStatus({ silent: true }),
+        loadSelectedDay({ silent: true }),
+        loadLogs(),
+      ]);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [client?.id, loadWeekStatus, loadSelectedDay, loadLogs]);
+
   // Reload when screen comes into focus (e.g., returning from ScheduleWorkout)
   useFocusEffect(
     useCallback(() => {
-      loadSelectedDay();
-      // Also reload week status
-      if (client?.id) {
-        (async () => {
-          setLoadingWeek(true);
-          try {
-            const map = await buildWeekStatus(client.id, weekStart);
-            setStatusByDate(map);
-          } finally {
-            setLoadingWeek(false);
-          }
-        })();
-      }
-      // Reload logs
-      if (client?.id && selectedDate) {
-        (async () => {
-          try {
-            const counts = await getLogsForDate(client.id, selectedDate);
-            setLogsCountByItem(counts);
-          } catch (error) {
-            console.error('Error loading logs:', error);
-          }
-        })();
-      }
-    }, [loadSelectedDay, client?.id, weekStart, selectedDate])
+      loadSelectedDay({ silent: true });
+      loadWeekStatus({ silent: true });
+      loadLogs();
+    }, [loadSelectedDay, loadWeekStatus, loadLogs])
   );
 
   // Find next exercise to do
@@ -191,7 +199,7 @@ export default function Workouts() {
         itemsAll,
         idxAll,
         readonly: true,
-        returnTo: 'Workouts',
+        returnTo: 'Schedule',
         date: selectedDate,
       });
       return;
@@ -219,7 +227,7 @@ export default function Workouts() {
         itemsAll,
         idxAll,
         readonly: true,
-        returnTo: 'Workouts',
+        returnTo: 'Schedule',
         date: selectedDate,
       });
     } else {
@@ -229,7 +237,7 @@ export default function Workouts() {
         supersetNum,
         itemsAll,
         idxAll,
-        returnTo: 'Workouts',
+        returnTo: 'Schedule',
       });
     }
   };
@@ -237,7 +245,18 @@ export default function Workouts() {
 
   return (
     <>
-      <StickyHeader title="Workouts" noSticky padded={false}>
+      <StickyHeader
+        title="Workouts"
+        noSticky
+        padded={false}
+        refreshing={refreshing}
+        refreshControl={
+          <WhiteRefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+          />
+        }
+      >
         <View style={[__base.paddingHorizontal, { paddingBottom: 0, paddingTop: 70 }]}>
           <HeaderText title={`Your workout week at a glance`} subtitle={'From ' + dayjs(weekStart).format('DD-MM') + ' to ' + dayjs(weekStart).add(6, 'day').format('DD-MM')}/>
         </View>

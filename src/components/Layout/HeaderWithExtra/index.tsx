@@ -9,19 +9,27 @@ import { styles } from './HeaderWithExtraStyle';
 
 type Props = {
   back?: string;
+  onBack?: () => void;
   title: string;
   subtitle?: string;
   image?: string;
   children?: ReactNode; // right-side slot
 };
 
-export default function HeaderWithExtra({ back, title, subtitle = '', image, children }: Props) {
+export default function HeaderWithExtra({ back, onBack, title, subtitle = '', image, children }: Props) {
   const hasChildren = Children.count(children) > 0;
+  const showBack = !!back || !!onBack;
 
   return (
     <View style={styles.headerWithExtra}>
       <View style={styles.headerWithExtraWrapper}>
-        {back ? <IconButton route={back} /> : null}
+        {showBack ? (
+          <IconButton
+            route={back}
+            back={!onBack}
+            onPress={onBack}
+          />
+        ) : null}
         <HeaderText title={title} subtitle={subtitle} />
       </View>
 

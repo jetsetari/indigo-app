@@ -1,4 +1,4 @@
-import { View, Text } from 'react-native';
+import { View, Text, Alert, ActivityIndicator } from 'react-native';
 import { useState } from 'react';
 import StickyHeader from '~/components/Layout/StickyHeader';
 import __base from '~/assets/styles/base';
@@ -8,9 +8,8 @@ import SettingsButton from '~/components/Buttons/SettingsButton';
 import { useUserStore } from '~/data/store/userStore';
 import HeaderWithExtra from '~/components/Layout/HeaderWithExtra';
 import { useNavigation } from '@react-navigation/native';
-import { logout } from '~/data/supabase/authHandler';
+import { logout, deleteAccount } from '~/data/supabase/authHandler';
 import HeaderClose from '~/components/Layout/HeaderClose';
-
 
 import ProfileSettings from './Settings/Profile';
 import Metrics from './Settings/Metrics';
@@ -29,6 +28,7 @@ export default function Profile() {
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState<string>('Settings');
   const [openChild, setOpenChild] = useState<React.ReactElement>(<></>);
+  const [deleting, setDeleting] = useState(false);
 
   const openSettings = (type: string) => {
     switch (type) {
@@ -42,6 +42,40 @@ export default function Profile() {
     setOpen(true);
   };
 
+  const confirmDeleteAccount = () => {
+    Alert.alert(
+      'Delete account?',
+      'This permanently deletes your account and all workout data. This cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete Account',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setDeleting(true);
+              await deleteAccount(navigation);
+            } catch {
+              // toast already shown in deleteAccount
+            } finally {
+              setDeleting(false);
+            }
+          },
+        },
+      ],
+    );
+  };
+
+  if (deleting) {
+    return (
+      <StickyHeader title="Profile" noSticky padded={false}>
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 120 }}>
+          <ActivityIndicator size="large" color="#FFF" />
+          <Text style={[__base.text, { marginTop: 16 }]}>Deleting account…</Text>
+        </View>
+      </StickyHeader>
+    );
+  }
 
   if(open){
     return (<StickyHeader title="Settings" noSticky={true} padded={false}>
@@ -79,7 +113,7 @@ export default function Profile() {
         {/* Danger Zone */}
         <View style={styles.section}>
           <Text style={[__base.textBold, { marginBottom: 10 }]}>Danger Zone</Text>
-          <SettingsButton icon="trash-2" title="Delete Account" onPress={() => alert('DeleteAccount')} />
+          <SettingsButton icon="trash-2" title="Delete Account" onPress={confirmDeleteAccount} />
         </View>
       </StickyHeader>
       <BottomTabs />

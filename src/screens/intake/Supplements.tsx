@@ -75,7 +75,7 @@ export default function Supplements() {
   return (
     <StickyHeader title={t.screenTitle ?? 'Supplements'}>
       <HeaderWithExtra
-        back={isSettings ? 'Profile' : 'EatingHabbits'}
+        back={isSettings ? 'Profile' : 'EatingHabits'}
         title={t.header?.title ?? 'Supplements'}
         subtitle={t.header?.subtitle ?? 'Select the ones you take'}
         image={avatarUrl}
