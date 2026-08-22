@@ -398,7 +398,7 @@ export default function Home() {
   return (
     <>
       <StickyHeader title="Home" noSticky>
-        <HeaderWithExtra title={`Welcome, ${displayName} 👋🏼`} subtitle="Let's build your strongest self." image={avatarUrl} />
+        <HeaderWithExtra title={`Welcome, ${displayName} 👋🏼`} subtitle="Let’s Take The Work Out." image={avatarUrl} />
         <InfoBox box1={infoBoxItems.box1} box2={infoBoxItems.box2} />
         
        
