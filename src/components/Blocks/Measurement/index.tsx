@@ -89,8 +89,8 @@ export default function MeasurementsInline({ dateISO }: Props) {
         clientId,
         dateISO,
         measurementType: type,
-        weight: vals.weight === '' ? null : Number(vals.weight),
-        bodyfat: vals.bodyfat === '' ? null : Number(vals.bodyfat),
+        weight: vals.weight === '' || vals.weight == null ? null : Number(vals.weight),
+        bodyfat: vals.bodyfat === '' || vals.bodyfat == null ? null : Number(vals.bodyfat),
         pictureFront: vals.pictureFront ?? null,
         pictureSide: vals.pictureSide ?? null,
         pictureBack: vals.pictureBack ?? null,
@@ -112,20 +112,20 @@ export default function MeasurementsInline({ dateISO }: Props) {
         <FormImageUpload control={control} name="pictureBack"  filepath="clients/progress" variant="square" size={64} label="Back" />
       </View>
 
+      <Text style={[__base.text, { color: '#AAA', fontSize: 13 }]}>
+        Add all three photos, then run AI estimation to fill bodyfat.
+      </Text>
+      <CustomButton title="Calculate with AI" backgroundColor="#FFF" textColor="#000" onPress={onCalculateAI} />
+
       <View style={[__base.rowGap, { flex: 1 }]}>
         <View style={{ flex: 1, minWidth: 0, paddingRight: 10 }}>
           <FormInput control={control} name="weight"  label="Weight"   placeholder="kg" type="number" />
         </View>
-        <View style={{ flex: 1, minWidth: 0, paddingRight: 10 }}>
+        <View style={{ flex: 1, minWidth: 0 }}>
           <FormInput control={control} name="bodyfat" label="Bodyfat"  placeholder="%"  type="number" />
         </View>
-        <View style={{ flex: 1, minWidth: 0, paddingBottom: 15 }}>
-          <CustomButton title="Calculate with AI" backgroundColor="#FFF" textColor="#000" onPress={onCalculateAI} />
-        </View>
       </View>
-      <View style={{ marginTop: -20 }}>
-        <CustomButton title="Save" backgroundColor="#000" textColor="#FFF" onPress={onSave} />
-      </View>
+      <CustomButton title="Save" backgroundColor="#000" textColor="#FFF" onPress={onSave} />
     </View>
   );
 }

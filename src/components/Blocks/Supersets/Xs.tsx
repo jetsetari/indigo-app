@@ -3,7 +3,7 @@ import { View, Text, TouchableOpacity } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import ExerciseItemXs from '~/components/Blocks/ExerciseItem/Xs';
 import { groupBySuperset, colorForSuperset } from '~/data/helpers/workouts';
-import { groupBySupersetNumber } from '~/data/helpers/workoutRun';
+import { groupBySupersetNumber, setsCountForItem } from '~/data/helpers/workoutRun';
 import { getLogsForDate } from '~/data/supabase/clientWorkoutLogsHandler';
 import { useUserStore } from '~/data/store/userStore';
 import type { WorkoutItem } from '~/data/types';
@@ -52,8 +52,7 @@ export default function SupersetsXs({ items, selectedDate }: Props) {
 
     // Find set index (how many sets are logged for this item)
     const loggedSets = logsCountByItem.get(item.id) ?? 0;
-    const repsArray = item.reps ? item.reps.split(',').map(s => s.trim()).filter(Boolean) : [];
-    const totalSets = Math.max(repsArray.length, item.sets ?? 1);
+    const totalSets = setsCountForItem(items, item.id);
     const setIndex = Math.min(loggedSets, totalSets - 1);
 
     // Check if all sets are done
@@ -61,20 +60,20 @@ export default function SupersetsXs({ items, selectedDate }: Props) {
     const itemsAll = items;
     const idxAll = itemsAll.findIndex((x: any) => x.id === item.id);
 
+    // Incomplete → perform next set (past sets show on Exercise).
+    // Complete → history for this exercise only.
     if (allSetsDone) {
-      // Navigate to LogExercise in readonly mode
       navigation.navigate('LogExercise', {
         item,
-        setIndex: totalSets - 1,
+        setIndex: Math.max(0, totalSets - 1),
         supersetNum,
         itemsAll,
         idxAll,
-        readonly: true,
+        mode: 'history',
         returnTo: 'Home',
         date: selectedDate,
       });
     } else {
-      // Navigate to Exercise screen
       navigation.navigate('Exercise', {
         item,
         setIndex,
@@ -103,11 +102,9 @@ export default function SupersetsXs({ items, selectedDate }: Props) {
                 const { border: itemBorder, bg: itemBg } = colorForSuperset(it.supersetLabel);
                 
                 // Check if this exercise is done (all sets logged)
-                const repsArray = it.reps ? it.reps.split(',').map(s => s.trim()).filter(Boolean) : [];
-                const totalSets = Math.max(repsArray.length, it.sets ?? 1);
+                const totalSets = setsCountForItem(items, it.id);
                 const loggedSets = logsCountByItem.get(it.id) ?? 0;
                 const done = loggedSets >= totalSets;
-                const setsProgress = `${loggedSets}/${totalSets}`;
                 
                 return (
                   <TouchableOpacity
@@ -123,10 +120,12 @@ export default function SupersetsXs({ items, selectedDate }: Props) {
                         label={tLabel}
                         borderColor={itemBorder}
                         backgroundColor={itemBg}
-                        setsProgress={setsProgress}
+                        loggedSets={loggedSets}
+                        totalSets={totalSets}
+                        progressColor={itemBorder}
                       />
                       {done && (
-                        <View style={{ marginLeft: 8, backgroundColor: '#22c55e', borderRadius: 12, width: 24, height: 24, justifyContent: 'center', alignItems: 'center' }}>
+                        <View style={{ marginLeft: 8, backgroundColor: itemBorder, borderRadius: 12, width: 24, height: 24, justifyContent: 'center', alignItems: 'center' }}>
                           <Feather name="check" size={16} color="#FFF" />
                         </View>
                       )}

@@ -50,22 +50,23 @@ const sourceKey = (source: VideoSource) => {
 
 const isVimeoUrl = (u?: string) => !!u && /(^https?:\/\/)?(player\.)?vimeo\.com/.test(u);
 
-const isYouTubeUrl = (u?: string) => !!u && /(^https?:\/\/)?(www\.)?(youtube\.com|youtu\.be)/.test(u);
+const isYouTubeUrl = (u?: string) =>
+  !!u &&
+  /(^https?:\/\/)?(www\.|m\.|music\.)?(youtube\.com|youtu\.be|youtube-nocookie\.com)/i.test(u);
+
 const extractYouTubeId = (url: string): string | null => {
-  const shortsMatch = url.match(/youtube\.com\/shorts\/([a-zA-Z0-9_-]+)/);
-  if (shortsMatch) return shortsMatch[1];
-
-  const watchMatch = url.match(/youtube\.com\/watch\?v=([a-zA-Z0-9_-]+)/);
-  if (watchMatch) return watchMatch[1];
-
-  const shortLinkMatch = url.match(/youtu\.be\/([a-zA-Z0-9_-]+)/);
-  if (shortLinkMatch) return shortLinkMatch[1];
-
-  const embedMatch = url.match(/youtube\.com\/embed\/([a-zA-Z0-9_-]+)/);
-  if (embedMatch) return embedMatch[1];
-
+  const patterns = [
+    /(?:youtube(?:-nocookie)?\.com\/(?:watch\?(?:[^#]*&)?v=|embed\/|v\/|shorts\/|live\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/i,
+    /[?&]v=([a-zA-Z0-9_-]{11})/i,
+  ];
+  for (const re of patterns) {
+    const m = url.match(re);
+    if (m?.[1]) return m[1];
+  }
   return null;
 };
+
+export { isYouTubeUrl, extractYouTubeId };
 
 const videoViewProps = {
   allowsFullscreen: false,

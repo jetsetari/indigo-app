@@ -27,7 +27,11 @@ export default function FormSelectMulti<T extends FieldValues>({
   rules,
 }: FormSelectMultiProps<T>) {
   const { field, fieldState } = useController({ control, name, rules });
-  const selected: string[] = Array.isArray(field.value) ? field.value : [];
+  const selected: string[] = Array.isArray(field.value)
+    ? field.value
+    : typeof field.value === 'string' && field.value
+      ? [field.value]
+      : [];
 
   const toggle = (slug: string) => {
     if (selected.includes(slug)) field.onChange(selected.filter(s => s !== slug));

@@ -18,6 +18,14 @@ import { getAllGoalsOptions, type GoalOption } from '~/data/supabase/optionsData
 import { updateClient, appendDoneScreen } from '~/data/supabase/clientsHandler';
 import { ClientGoalsRow } from '~/data/types';
 
+function toSlugArray(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value.filter((item): item is string => typeof item === 'string' && item.length > 0);
+  }
+  if (typeof value === 'string' && value.trim()) return [value.trim()];
+  return [];
+}
+
 export default function Goals() {
   const navigation = useNavigation<any>();
   const t = useTranslation().goals;
@@ -29,10 +37,13 @@ export default function Goals() {
   const [loading, setLoading] = useState(true);
   const [weightOptions, setWeightOptions] = useState<GoalOption[]>([]);
   const [performanceOptions, setPerformanceOptions] = useState<GoalOption[]>([]);
-  const [sportTrainingOptions, setSportTrainingOptions] = useState<GoalOption[]>([]);
 
   const { control, handleSubmit, formState: { isSubmitting } } = useForm<ClientGoalsRow>({
-    defaultValues: { weightGoals: [], performanceGoals: [], sportGoals: []},
+    defaultValues: {
+      weightGoals: toSlugArray(client?.weightGoals),
+      performanceGoals: toSlugArray(client?.performanceGoals),
+      sportGoals: [],
+    },
     mode: 'onSubmit',
   });
 
@@ -41,12 +52,11 @@ export default function Goals() {
     (async () => {
       try {
         setLoading(true);
-        const { weight, performance, sport } = await getAllGoalsOptions();
-        console.log(weight, performance, sport);
+        const { weight, performance /*, sport */ } = await getAllGoalsOptions();
         if (!alive) return;
         setWeightOptions(weight);
         setPerformanceOptions(performance);
-        setSportTrainingOptions(sport);
+        // setSportTrainingOptions(sport);
       } catch (e) {
         toastError(t?.loadErrorTitle ?? 'Error', t?.loadErrorBody ?? 'Failed to load options.');
       } finally {
@@ -58,14 +68,10 @@ export default function Goals() {
 
   const onSubmit = useCallback(handleSubmit(async (values) => {
     try {
-      const weight = values.weightGoals?.[0] ?? null;
-      const performance = values.performanceGoals?.[0] ?? null;
-      const sport = values.sportGoals?.[0] ?? null;
-
       await updateClient({
         weightGoals: values.weightGoals?.length ? values.weightGoals : null,
         performanceGoals: values.performanceGoals?.length ? values.performanceGoals : null,
-        sportGoals: values.sportGoals?.length ? values.sportGoals : null,
+        // sportGoals: values.sportGoals?.length ? values.sportGoals : null,
       });
 
       toastSuccess(t?.savedTitle ?? 'Saved', t?.savedBody ?? 'Your goals have been saved.');
@@ -103,6 +109,7 @@ export default function Goals() {
         options={performanceOptions}
       />
 
+      {/* Sport-specific goals — temporarily removed
       <FormSelectMulti
         control={control}
         name="sportGoals"
@@ -110,6 +117,7 @@ export default function Goals() {
         icon="🏃‍♂️"
         options={sportTrainingOptions}
       />
+      */}
 
       <CustomButton
         title={isSubmitting ? (t?.ctaSaving ?? 'Saving…') : (t?.ctaNext ?? 'Next')}

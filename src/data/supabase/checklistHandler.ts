@@ -26,10 +26,11 @@ export async function fetchChecklistState(clientId: number, isoDate: string): Pr
     .select('checklist')
     .eq('client_id', clientId)
     .eq('date', isoDate)
-    .maybeSingle();
+    .order('id', { ascending: true })
+    .limit(1);
 
   if (error) throw error;
-  return (data?.checklist ?? []) as string[];
+  return (data?.[0]?.checklist ?? []) as string[];
 }
 
 export async function toggleChecklistCell(

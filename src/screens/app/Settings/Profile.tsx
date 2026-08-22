@@ -21,15 +21,16 @@ export default function ProfileSettings() {
   
   // Convert dob string to Date object if it exists
   const dobDate = useMemo(() => {
-    if (!client?.dob) return '';
+    if (!client?.dob) return null;
     const dob = client.dob as any;
-    if (dob instanceof Date) return dob;
+    if (dob instanceof Date && !Number.isNaN(dob.getTime())) return dob;
     // Handle string dates (ISO format: YYYY-MM-DD)
     const dateStr = typeof dob === 'string' ? dob : String(dob);
     if (dateStr.match(/^\d{4}-\d{2}-\d{2}/)) {
-      return new Date(dateStr + 'T00:00:00');
+      const parsed = new Date(dateStr.slice(0, 10) + 'T00:00:00');
+      return Number.isNaN(parsed.getTime()) ? null : parsed;
     }
-    return '';
+    return null;
   }, [client?.dob]);
 
   const { control, handleSubmit } = useForm<Values>({
@@ -37,7 +38,7 @@ export default function ProfileSettings() {
       firstName: client?.firstName || '',
       lastName:  client?.lastName  || '',
       gender:    client?.gender    || '',
-      dob:       dobDate,
+      dob:       dobDate as any,
       avatarUrl: client?.avatarUrl || null,
     },
     mode: 'onSubmit',
@@ -45,18 +46,25 @@ export default function ProfileSettings() {
 
   const onSubmit = useCallback(handleSubmit(async (v) => {
     try {
+      const dob =
+        v.dob instanceof Date
+          ? v.dob.toISOString().slice(0, 10)
+          : typeof v.dob === 'string' && v.dob
+            ? v.dob.slice(0, 10)
+            : null;
+
       await updateClient({
         firstName: v.firstName?.trim() || null,
         lastName:  v.lastName?.trim()  || null,
         gender:    v.gender || null,
-        dob:       v.dob || null,
+        dob,
         avatar_url: v.avatarUrl || null,
       });
       toastSuccess('Saved', 'Profile updated.');
     } catch (e:any) {
       toastError('Save failed', e?.message || 'Try again.');
     }
-  }), []);
+  }), [handleSubmit]);
 
   return (
     <View style={{ paddingBottom: 100 }}>

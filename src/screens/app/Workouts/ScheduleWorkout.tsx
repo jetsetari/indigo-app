@@ -1,6 +1,6 @@
 // src/screens/app/Workouts/ScheduleWorkout.tsx
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, Image, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, Image, TouchableOpacity, StyleSheet, Alert, ActivityIndicator } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import dayjs from 'dayjs';
 import { Feather } from '@expo/vector-icons';
@@ -12,7 +12,14 @@ import CustomButton from '~/components/Buttons/CustomButton';
 import Loading from '~/components/Loading';
 import __base from '~/assets/styles/base';
 import { useUserStore } from '~/data/store/userStore';
-import { fetchWorkoutsByDateRange, updateWorkoutDayDate } from '~/data/supabase/workoutsHandler';
+import {
+  fetchWorkoutsByDateRange,
+  fetchSelectableWeekWorkouts,
+  moveWorkoutToDate,
+  skipWorkoutDay,
+  updateWorkoutDayDate,
+  type SelectableWeekWorkout,
+} from '~/data/supabase/workoutsHandler';
 
 type WorkoutDayItem = {
   id: number;
@@ -43,6 +50,8 @@ export default function ScheduleWorkout() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [workouts, setWorkouts] = useState<WorkoutDayItem[]>([]);
+  const [missedWorkouts, setMissedWorkouts] = useState<SelectableWeekWorkout[]>([]);
+  const [busyMissedDayId, setBusyMissedDayId] = useState<number | null>(null);
   const [selectedWorkoutIndex, setSelectedWorkoutIndex] = useState<number | null>(null);
   const [weekStart, setWeekStart] = useState(() => {
     // Get Monday of the week containing selectedDate
@@ -57,7 +66,11 @@ export default function ScheduleWorkout() {
       const days = buildWeekDays(weekStart);
       const fromDate = weekStart;
       const toDate = dayjs(weekStart).add(6, 'day').format('YYYY-MM-DD');
-      const fetchedWorkouts = await fetchWorkoutsByDateRange(client.id, fromDate, toDate);
+      const [fetchedWorkouts, selectableWorkouts] = await Promise.all([
+        fetchWorkoutsByDateRange(client.id, fromDate, toDate),
+        fetchSelectableWeekWorkouts(client.id, dayjs().format('YYYY-MM-DD'), 20),
+      ]);
+      setMissedWorkouts(selectableWorkouts.filter((workout) => workout.isMissed));
 
       // Create a map of workouts by date
       const workoutsByDate = new Map<string, WorkoutDayItem>();
@@ -107,6 +120,72 @@ export default function ScheduleWorkout() {
   const onRefresh = useCallback(() => {
     loadWorkouts({ refresh: true });
   }, [loadWorkouts]);
+
+  const handleSelectMissedWorkout = (workout: SelectableWeekWorkout) => {
+    if (!client?.id || busyMissedDayId) return;
+    const title = workout.title?.trim() || `Day ${workout.dayIndex}`;
+    const targetWorkout = workouts.find(
+      (item) => item.id > 0 && item.date === selectedDate
+    );
+
+    Alert.alert(
+      'Select missed workout?',
+      `Move "${title}" to ${dayjs(selectedDate).format('dddd, D MMMM')}?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Select',
+          onPress: async () => {
+            setBusyMissedDayId(workout.id);
+            try {
+              await moveWorkoutToDate(
+                client.id,
+                workout.id,
+                workout.date,
+                selectedDate,
+                targetWorkout?.id
+              );
+              await loadWorkouts();
+            } catch (error) {
+              console.error('Error selecting missed workout:', error);
+              Alert.alert('Could not select workout', 'Please try again.');
+            } finally {
+              setBusyMissedDayId(null);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleSkipMissedWorkout = (workout: SelectableWeekWorkout) => {
+    if (busyMissedDayId) return;
+    const title = workout.title?.trim() || `Day ${workout.dayIndex}`;
+
+    Alert.alert(
+      'Skip this workout?',
+      `"${title}" will be marked as skipped and will not be offered again.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Skip',
+          style: 'destructive',
+          onPress: async () => {
+            setBusyMissedDayId(workout.id);
+            try {
+              await skipWorkoutDay(workout.id);
+              await loadWorkouts();
+            } catch (error) {
+              console.error('Error skipping missed workout:', error);
+              Alert.alert('Could not skip workout', 'Please try again.');
+            } finally {
+              setBusyMissedDayId(null);
+            }
+          },
+        },
+      ]
+    );
+  };
 
   const handleMoveWorkout = async (fromIndex: number, toIndex: number) => {
     if (fromIndex === toIndex) {
@@ -271,6 +350,53 @@ export default function ScheduleWorkout() {
         </View>
 
         <View style={[__base.paddingHorizontal, { paddingBottom: 100 }]}>
+          {missedWorkouts.length > 0 && (
+            <View style={styles.missedSection}>
+              <Text style={styles.missedHeading}>Missed workouts</Text>
+              <Text style={styles.missedDescription}>
+                Select one to schedule it for this day, or skip it permanently.
+              </Text>
+              {missedWorkouts.map((workout) => {
+                const isBusy = busyMissedDayId === workout.id;
+                return (
+                  <View key={workout.id} style={styles.missedCard}>
+                    <View style={styles.missedCardHeader}>
+                      <View style={styles.dayInfo}>
+                        <Text style={styles.missedDate}>
+                          Missed · {dayjs(workout.date).format('dddd, D MMMM')}
+                        </Text>
+                        <Text style={styles.dayTitle}>
+                          {workout.title?.trim() || `Day ${workout.dayIndex}`}
+                        </Text>
+                      </View>
+                      {isBusy && <ActivityIndicator color="#4DD4AC" />}
+                    </View>
+                    {workout.previewExercises.length > 0 && (
+                      <Text style={styles.missedPreview} numberOfLines={2}>
+                        {workout.previewExercises.join(' · ')}
+                      </Text>
+                    )}
+                    <View style={styles.missedActions}>
+                      <TouchableOpacity
+                        style={styles.skipButton}
+                        onPress={() => handleSkipMissedWorkout(workout)}
+                        disabled={busyMissedDayId !== null}
+                      >
+                        <Text style={styles.skipButtonText}>Skip</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.selectButton}
+                        onPress={() => handleSelectMissedWorkout(workout)}
+                        disabled={busyMissedDayId !== null}
+                      >
+                        <Text style={styles.selectButtonText}>Select</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
+          )}
           {selectedWorkoutIndex !== null && (
             <View style={styles.instructionBox}>
               <Text style={styles.instructionText}>
@@ -338,6 +464,66 @@ const styles = StyleSheet.create({
   },
   workoutsContainer: {
     marginBottom: 5,
+  },
+  missedSection: {
+    marginBottom: 20,
+    gap: 8,
+  },
+  missedHeading: {
+    color: '#FFF',
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  missedDescription: {
+    color: '#999',
+    fontSize: 13,
+    marginBottom: 2,
+  },
+  missedCard: {
+    backgroundColor: '#111',
+    borderWidth: 1,
+    borderColor: '#5A4028',
+    padding: 12,
+    gap: 8,
+  },
+  missedCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  missedDate: {
+    color: '#FFB067',
+    fontSize: 13,
+    marginBottom: 3,
+  },
+  missedPreview: {
+    color: '#AAA',
+    fontSize: 13,
+  },
+  missedActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 8,
+  },
+  skipButton: {
+    borderColor: '#555',
+    borderWidth: 1,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  skipButtonText: {
+    color: '#CCC',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  selectButton: {
+    backgroundColor: '#4DD4AC',
+    paddingHorizontal: 18,
+    paddingVertical: 8,
+  },
+  selectButtonText: {
+    color: '#000',
+    fontSize: 13,
+    fontWeight: '700',
   },
   instructionBox: {
     backgroundColor: '#1a1a1a',

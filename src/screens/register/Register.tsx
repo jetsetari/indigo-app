@@ -14,6 +14,7 @@ import { registerDefault } from '~/data/forms/defaultValues';
 import useTranslation from '~/data/helpers/translation';
 import { genderOptions } from '~/data/content/options';
 import { validateRegister } from '~/data/forms/validationRules';
+import { toastError } from '~/data/helpers/toast';
 
 import __base from '~/assets/styles/base';
 import Loading from '~/components/Loading';
@@ -30,18 +31,32 @@ export default function Register() {
   const [loading, setLoading] = useState(false);
   const canSubmit = useMemo(() => !isSubmitting && !loading, [isSubmitting, loading]);
 
-  const onSubmit = handleSubmit(async (values) => {
-    setLoading(true);
-    try {
-      const { agreed, ...payload } = values as any;
-      await createAndLoginClient(payload);
-      navigation.navigate('Metrics');
-    } catch (e) {
-      console.log(e);
-    } finally {
-      setLoading(false);
-    }
-  });
+  const onSubmit = handleSubmit(
+    async (values) => {
+      setLoading(true);
+      try {
+        const { agreed, ...payload } = values as any;
+        await createAndLoginClient(payload);
+        navigation.navigate('Metrics');
+      } catch (e) {
+        // Supabase Postgrest errors are plain objects, not Error instances.
+        console.log('register failed', JSON.stringify(e), e);
+        const err = e as { message?: string; details?: string; hint?: string; code?: string };
+        const message =
+          [err?.message, err?.details, err?.code && `(${err.code})`].filter(Boolean).join(' ') ||
+          'Please try again.';
+        toastError(t.errors?.registerFailed ?? 'Registration failed', message);
+      } finally {
+        setLoading(false);
+      }
+    },
+    () => {
+      toastError(
+        t.errors?.registerFailed ?? 'Registration failed',
+        'Please check all required fields and accept the Terms and Privacy Policy.',
+      );
+    },
+  );
 
   if(loading){ return <Loading />}
 

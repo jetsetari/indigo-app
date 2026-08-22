@@ -87,8 +87,9 @@ export default function FormInput<T extends FieldValues = FieldValues>({
                 value={stringValue}
                 onChangeText={(text) => {
                   if (isNumber) {
-                    const digitsOnly = text.replace(/[^0-9]/g, '');
-                    onChange(digitsOnly === '' ? null : Number(digitsOnly));
+                    // Keep decimals (e.g. bodyfat); empty stays '' so optional fields can be blank
+                    const cleaned = text.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1');
+                    onChange(cleaned === '' ? '' : cleaned);
                   } else {
                     onChange(text);
                   }

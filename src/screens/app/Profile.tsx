@@ -13,10 +13,8 @@ import HeaderClose from '~/components/Layout/HeaderClose';
 
 import ProfileSettings from './Settings/Profile';
 import Metrics from './Settings/Metrics';
-import EatingHabbits from './Settings/EatingHabbits';
 import Goals from './Settings/Goals';
 import Level from './Settings/Level';
-import Supplements from './Settings/Supplements';
 
 import dayjs from 'dayjs';
 
@@ -32,12 +30,10 @@ export default function Profile() {
 
   const openSettings = (type: string) => {
     switch (type) {
-      case 'profile':      setTitle('Profile');      setOpenChild(<ProfileSettings />); break;
-      case 'metrics':      setTitle('Metrics');      setOpenChild(<Metrics />); break;
-      case 'eatinghabbits':setTitle('Eating Habits');setOpenChild(<EatingHabbits />); break;
-      case 'goals':        setTitle('Goals');        setOpenChild(<Goals />); break;
-      case 'level':        setTitle('Level');        setOpenChild(<Level />); break;
-      case 'supplements':  setTitle('Supplements');  setOpenChild(<Supplements />); break;
+      case 'profile': setTitle('Profile'); setOpenChild(<ProfileSettings />); break;
+      case 'metrics': setTitle('Metrics'); setOpenChild(<Metrics />); break;
+      case 'goals':   setTitle('Goals');   setOpenChild(<Goals />); break;
+      case 'level':   setTitle('Level');   setOpenChild(<Level />); break;
     }
     setOpen(true);
   };
@@ -98,10 +94,8 @@ export default function Profile() {
           <Text style={[__base.textBold, { marginBottom: 10 }]}>General Settings</Text>
           <SettingsButton icon="user" title="Profile Settings" onPress={() => openSettings('profile')} />
           <SettingsButton icon="cloud-lightning" title="Metrics" onPress={() => openSettings('metrics')} />
-          <SettingsButton icon="aperture" title="Eating Habits" onPress={() => openSettings('eatinghabbits')} />
           <SettingsButton icon="feather" title="Goals" onPress={() => openSettings('goals')} />
           <SettingsButton icon="flag" title="Level" onPress={() => openSettings('level')} />
-          <SettingsButton icon="box" title="Supplements" onPress={() => openSettings('supplements')} />
         </View>
 
         {/* Security & Privacy */}

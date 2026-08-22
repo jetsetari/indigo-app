@@ -4,6 +4,7 @@ import { supabase } from './connection';
 import { MuscleGroup, Exercise, WorkoutItem, WorkoutDay, WorkoutWeek, WorkoutProgram } from '../types';
 import { getLogsForDate } from './clientWorkoutLogsHandler';
 import { deleteSchedule, upsertWorkoutSchedule } from './workoutSchedulesHandler';
+import { setsCountForItem } from '../helpers/workoutRun';
 
 /** ---------- Public API ---------- */
 
@@ -284,6 +285,7 @@ export async function fetchWorkoutsByDateRange(
       weight: it.weight ?? null,
       restSeconds: it.rest_seconds ?? null,
       notes: it.notes ?? null,
+      customExerciseName: it.custom_exercise_name ?? null,
       exercise: it.exercise_id ? exById.get(it.exercise_id) ?? null : null,
     });
     itemsByDay.set(it.day_id, arr);
@@ -365,10 +367,7 @@ function isWorkoutDayComplete(
 ): boolean {
   if (!items.length) return false;
   return items.every((item) => {
-    const repsArray = item.reps
-      ? item.reps.split(',').map((s) => s.trim()).filter(Boolean)
-      : [];
-    const totalSets = Math.max(repsArray.length, item.sets ?? 1);
+    const totalSets = setsCountForItem(items, item.id);
     const loggedSets = logsCountByItem.get(item.id) ?? 0;
     return loggedSets >= totalSets;
   });
@@ -379,6 +378,7 @@ export type SelectableWeekWorkout = {
   title: string | null;
   date: string | null;
   dayIndex: number;
+  isMissed: boolean;
   coverImage?: string | null;
   previewExercises: string[];
 };
@@ -394,9 +394,9 @@ function exercisePreviewName(item: {
 }
 
 /**
- * Incomplete workouts from program week(s) anchored to the current calendar week.
- * If any day in a program week is dated this Mon–Sun, all unfinished days in that
- * week are eligible (including undated ones), ordered by day_index, capped at `limit`.
+ * Incomplete workouts available to the current client. This includes missed dated
+ * workouts from previous weeks and every unfinished day in program week(s) anchored
+ * to the current Mon–Sun (including undated days), capped at `limit`.
  */
 export async function fetchSelectableWeekWorkouts(
   clientId: number,
@@ -432,21 +432,51 @@ export async function fetchSelectableWeekWorkouts(
     .gte('date', weekStart)
     .lte('date', weekEnd);
   if (aErr) throw aErr;
-  if (!anchorDays?.length) return [];
 
-  const anchoredWeekIds = Array.from(new Set(anchorDays.map((d: any) => d.week_id as number)));
+  const anchoredWeekIds = Array.from(
+    new Set((anchorDays ?? []).map((d: any) => d.week_id as number))
+  );
 
-  // All days in those program weeks (dated or not)
-  const { data: days, error: dErr } = await supabase
+  // Include every day in the current program week, plus dated missed workouts
+  // from earlier program weeks.
+  const currentWeekQuery = anchoredWeekIds.length
+    ? await supabase
+        .from('workout_days')
+        .select('id,week_id,day_index,title,date,skipped_at')
+        .in('week_id', anchoredWeekIds)
+        .order('week_id', { ascending: true })
+        .order('day_index', { ascending: true })
+    : { data: [], error: null as any };
+  if (currentWeekQuery.error) throw currentWeekQuery.error;
+
+  const missedQuery = await supabase
     .from('workout_days')
-    .select('id,week_id,day_index,title,date')
-    .in('week_id', anchoredWeekIds)
-    .order('week_id', { ascending: true })
-    .order('day_index', { ascending: true });
-  if (dErr) throw dErr;
-  if (!days?.length) return [];
+    .select('id,week_id,day_index,title,date,skipped_at')
+    .in('week_id', allWeekIds)
+    .lt('date', todayISO)
+    .order('date', { ascending: false });
+  if (missedQuery.error) throw missedQuery.error;
 
-  const candidates = days.filter((d: any) => d.date !== todayISO);
+  const daysById = new Map<number, any>();
+  for (const day of missedQuery.data ?? []) daysById.set(day.id, day);
+  for (const day of currentWeekQuery.data ?? []) {
+    if (!daysById.has(day.id)) daysById.set(day.id, day);
+  }
+
+  const candidates = Array.from(daysById.values()).filter(
+    (d: any) => d.date !== todayISO && !d.skipped_at
+  );
+
+  return hydrateSelectableDays(clientId, candidates, todayISO, limit);
+}
+
+/** Load items/exercises for candidate days and drop the already completed ones. */
+async function hydrateSelectableDays(
+  clientId: number,
+  candidates: any[],
+  todayISO: string,
+  limit: number
+): Promise<SelectableWeekWorkout[]> {
   if (!candidates.length) return [];
 
   const dayIds = candidates.map((d: any) => d.id);
@@ -510,6 +540,7 @@ export async function fetchSelectableWeekWorkouts(
       title: day.title ?? null,
       date: day.date ?? null,
       dayIndex: day.day_index,
+      isMissed: Boolean(day.date && day.date < todayISO),
       coverImage: (firstWithCover?.exercise as any)?.cover ?? null,
       previewExercises,
     });
@@ -520,23 +551,85 @@ export async function fetchSelectableWeekWorkouts(
 }
 
 /**
+ * Next planned workouts after today, for programs where the coach enabled
+ * "Show upcoming workouts". Used when nothing is left in the current week.
+ */
+export async function fetchUpcomingWorkouts(
+  clientId: number,
+  todayISO: string,
+  limit = 3
+): Promise<SelectableWeekWorkout[]> {
+  const { data: programs, error: pErr } = await supabase
+    .from('workout_programs')
+    .select('id')
+    .eq('client_id', clientId)
+    .eq('show_upcoming_workouts', true);
+  if (pErr) throw pErr;
+  if (!programs?.length) return [];
+
+  const { data: weeks, error: wErr } = await supabase
+    .from('workout_weeks')
+    .select('id')
+    .in('program_id', programs.map((p: any) => p.id));
+  if (wErr) throw wErr;
+  if (!weeks?.length) return [];
+
+  const { data: days, error: dErr } = await supabase
+    .from('workout_days')
+    .select('id,week_id,day_index,title,date,skipped_at')
+    .in('week_id', weeks.map((w: any) => w.id))
+    .gt('date', todayISO)
+    .order('date', { ascending: true });
+  if (dErr) throw dErr;
+
+  const candidates = (days ?? []).filter((d: any) => !d.skipped_at);
+
+  return hydrateSelectableDays(clientId, candidates, todayISO, limit);
+}
+
+/**
  * Move a workout day onto `toDate` and keep workout_schedules in sync.
  */
 export async function moveWorkoutToDate(
   clientId: number,
   dayId: number,
   fromDate: string | null,
-  toDate: string
+  toDate: string,
+  replacedDayId?: number | null
 ) {
-  await updateWorkoutDayDate(dayId, toDate);
+  if (replacedDayId && replacedDayId !== dayId) {
+    const { error: replaceError } = await supabase
+      .from('workout_days')
+      .update({ date: null })
+      .eq('id', replacedDayId);
+    if (replaceError) throw replaceError;
+  }
+
+  const { error } = await supabase
+    .from('workout_days')
+    .update({ date: toDate, skipped_at: null })
+    .eq('id', dayId);
+  if (error) throw error;
+
   if (fromDate && fromDate !== toDate) {
     await deleteSchedule(fromDate, clientId);
   }
+  await deleteSchedule(toDate, clientId);
   await upsertWorkoutSchedule({
     clientId,
     workoutDayId: dayId,
     isoDate: toDate,
   });
+}
+
+/** Permanently hide a missed workout from completion prompts/selectors. */
+export async function skipWorkoutDay(dayId: number) {
+  const { error } = await supabase
+    .from('workout_days')
+    .update({ skipped_at: new Date().toISOString() })
+    .eq('id', dayId);
+
+  if (error) throw error;
 }
 
 /** Fetch one workout day with its items + exercises (+ muscle group). */

@@ -2,12 +2,9 @@ import dayjs from 'dayjs';
 import { listSchedulesInRange } from '~/data/supabase/workoutSchedulesHandler';
 import { fetchDayWithItems } from '~/data/supabase/workoutsHandler';
 import { getLogsForDate } from '~/data/supabase/clientWorkoutLogsHandler';
+import { setsCountForItem } from '~/data/helpers/workoutRun';
 
 export type DayStatus = 'none' | 'partial' | 'done';
-
-// "10,8,6" -> 3 ; "300s,200s" -> 2 ; "12" -> 1
-const countSetsFromReps = (reps?: string | null) =>
-  reps ? (reps.split(',').map(s => s.trim()).filter(Boolean).length || 1) : 1;
 
 /**
  * Returns a map { 'YYYY-MM-DD': 'none'|'partial'|'done' } for the given week.
@@ -40,7 +37,7 @@ export async function buildWeekStatus(
     const logsMap = await getLogsForDate(clientId, iso); // Map<workout_item_id, count>
 
     const allDone = items.every((it: any) => {
-      const needed = countSetsFromReps(it?.reps);
+      const needed = setsCountForItem(items, it.id);
       const have = logsMap.get(it.id) ?? 0;
       return have >= needed;
     });

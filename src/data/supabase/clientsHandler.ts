@@ -34,20 +34,39 @@ function stripUndefined<T extends Record<string, any>>(obj: T): Partial<T> {
 }
 
 export async function fetchClientByEmail(email: string) {
-  const { data, error } = await supabase.from('clients').select('*').eq('email', email).single();
+  const { data, error } = await supabase
+    .from('clients')
+    .select('*')
+    .eq('email', email)
+    .order('id', { ascending: true })
+    .limit(1)
+    .maybeSingle();
   if (error) throw error;
+  if (!data) throw new Error('Client not found');
   return snakeToCamel(data);
 }
 
 export async function fetchClientByUserId(userId: string) {
-  const { data, error } = await supabase.from('clients').select('*').eq('user_id', userId).single();
+  const { data, error } = await supabase
+    .from('clients')
+    .select('*')
+    .eq('user_id', userId)
+    .order('id', { ascending: true })
+    .limit(1)
+    .maybeSingle();
   if (error) throw error;
+  if (!data) throw new Error('Client not found');
   return snakeToCamel(data);
 }
 
 export async function fetchClientById(id: string) {
-  const { data, error } = await supabase.from('clients').select('*').eq('id', id).single();
+  const { data, error } = await supabase
+    .from('clients')
+    .select('*')
+    .eq('id', id)
+    .maybeSingle();
   if (error) throw error;
+  if (!data) throw new Error('Client not found');
   return snakeToCamel(data);
 }
 
@@ -161,19 +180,22 @@ export async function appendDoneScreen(key: 'metrics'|'goals'|'level'|'eatinghab
 
   const { data: row, error: selErr } = await supabase
     .from('clients')
-    .select('done_screens')
+    .select('id, done_screens')
     .eq('email', user.email)
-    .single();
+    .order('id', { ascending: true })
+    .limit(1)
+    .maybeSingle();
   if (selErr) {
     console.log(selErr);
     throw selErr;
   }
+  if (!row?.id) throw new Error('Client not found');
 
   const next = Array.from(new Set([...(row?.done_screens ?? []), key]));
   const { error: updErr } = await supabase
     .from('clients')
     .update({ done_screens: next })
-    .eq('email', user.email);
+    .eq('id', row.id);
   if (updErr){
     console.log(updErr);
     throw updErr;
@@ -182,13 +204,21 @@ export async function appendDoneScreen(key: 'metrics'|'goals'|'level'|'eatinghab
 type MeasurementType = 'ai' | 'manual';
 export async function addClientMeasurement(input: MeasurementRow) {
   const today = new Date().toISOString().slice(0, 10);
-  const row = camelToSnake({
-    ...input,
-    date: input.date ?? today,
-  });
+  const date = input.date ?? today;
+  const toNum = (v: any) =>
+    v === '' || v === undefined || v === null ? null : Number(v);
 
-  const { error } = await supabase.from('client_measurements').insert(row);
-  if (error) throw error;
+  // Prefer upsert-by-date so re-running onboarding doesn't fail on duplicates.
+  return addClientMeasurementDate({
+    clientId: input.clientId,
+    weight: toNum(input.weight),
+    bodyfat: toNum((input as any).bodyfat),
+    pictureFront: (input as any).pictureFront ?? null,
+    pictureSide: (input as any).pictureSide ?? null,
+    pictureBack: (input as any).pictureBack ?? null,
+    dateISO: date,
+    measurementType: ((input as any).measurementType as MeasurementType) || 'manual',
+  });
 }
 
 
@@ -216,13 +246,15 @@ export async function addClientMeasurementDate({
     v === '' || v === undefined || v === null ? null : Number(v);
 
   // 1) See if a row already exists for (client_id, date)
-  const { data: existing, error: selErr } = await supabase
+  const { data: existingRows, error: selErr } = await supabase
     .from('client_measurements')
     .select('id, checklist')
     .eq('client_id', clientId)
     .eq('date', date)
-    .maybeSingle();
+    .order('id', { ascending: true })
+    .limit(1);
   if (selErr) throw selErr;
+  const existing = existingRows?.[0] ?? null;
 
   const payload = {
     client_id: clientId,
@@ -249,9 +281,9 @@ export async function addClientMeasurementDate({
       .from('client_measurements')
       .insert(payload)
       .select('id')
-      .single();
+      .limit(1);
     if (error) throw error;
-    return data.id;
+    return data?.[0]?.id;
   }
 }
 
@@ -261,10 +293,10 @@ export async function getMeasurementByDate(clientId: number, isoDate: string) {
     .select('id, date, weight, bodyfat, picture_front, picture_side, picture_back, measurement_type, checklist')
     .eq('client_id', clientId)
     .eq('date', isoDate)
-    .maybeSingle(); // returns null if none
-
+    .order('id', { ascending: true })
+    .limit(1);
   if (error) throw error;
-  return data; // may be null
+  return data?.[0] ?? null;
 }
 
 
