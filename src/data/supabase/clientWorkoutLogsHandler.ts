@@ -1,5 +1,6 @@
 import { supabase } from './connection';
 import { useUserStore } from '~/data/store/userStore';
+import { localTodayISO } from '~/data/helpers/date';
 
 export type ClientWorkoutLog = {
   id: number;
@@ -24,7 +25,7 @@ export async function insertWorkoutLog(input: {
 }) {
   const clientId = input.clientId ?? useUserStore.getState().client?.id;
   if (!clientId) throw new Error('Missing client id');
-  const date = input.date ?? new Date().toISOString().slice(0, 10);
+  const date = input.date ?? localTodayISO();
 
   const { data, error } = await supabase
     .from('client_workout_logs')
@@ -46,7 +47,7 @@ export async function insertWorkoutLog(input: {
 
 
 export async function getLogsForDate(clientId: number, isoDate?: string) {
-  const date = isoDate ?? new Date().toISOString().slice(0, 10);
+  const date = isoDate ?? localTodayISO();
   const { data, error } = await supabase
     .from('client_workout_logs')
     .select('workout_item_id')
@@ -65,7 +66,7 @@ export async function getLogsForDate(clientId: number, isoDate?: string) {
 
 /** Get all log entries for a specific workout item on a date, ordered by creation time */
 export async function getLogsForItem(clientId: number, workoutItemId: number, isoDate?: string): Promise<ClientWorkoutLog[]> {
-  const date = isoDate ?? new Date().toISOString().slice(0, 10);
+  const date = isoDate ?? localTodayISO();
   const { data, error } = await supabase
     .from('client_workout_logs')
     .select('*')
@@ -76,6 +77,36 @@ export async function getLogsForItem(clientId: number, workoutItemId: number, is
 
   if (error) throw error;
   return (data ?? []) as ClientWorkoutLog[];
+}
+
+/** Get logs for multiple workout items on a date, keyed by workout_item_id */
+export async function getLogsForItems(
+  clientId: number,
+  workoutItemIds: number[],
+  isoDate?: string
+): Promise<Map<number, ClientWorkoutLog[]>> {
+  const map = new Map<number, ClientWorkoutLog[]>();
+  if (!workoutItemIds.length) return map;
+
+  const date = isoDate ?? localTodayISO();
+  const { data, error } = await supabase
+    .from('client_workout_logs')
+    .select('*')
+    .eq('client_id', clientId)
+    .eq('date', date)
+    .in('workout_item_id', workoutItemIds)
+    .order('created_at', { ascending: true });
+
+  if (error) throw error;
+
+  for (const id of workoutItemIds) map.set(id, []);
+  for (const row of (data ?? []) as ClientWorkoutLog[]) {
+    const id = Number(row.workout_item_id);
+    const list = map.get(id) ?? [];
+    list.push(row);
+    map.set(id, list);
+  }
+  return map;
 }
 
 /** Update an existing workout log entry */
@@ -134,48 +165,38 @@ export async function getWorkoutStreak(clientId: number): Promise<number> {
   
   if (uniqueDates.length === 0) return 0;
   
-  // Check streak starting from today or yesterday
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const yesterday = new Date(today);
-  yesterday.setDate(yesterday.getDate() - 1);
-  
-  const todayISO = today.toISOString().slice(0, 10);
-  const yesterdayISO = yesterday.toISOString().slice(0, 10);
+  // Check streak starting from today or yesterday (local calendar)
+  const todayISO = localTodayISO();
+  const yesterdayDate = new Date();
+  yesterdayDate.setHours(12, 0, 0, 0);
+  yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+  const yesterdayISO = localTodayISO(yesterdayDate);
   
   // Start checking from today or yesterday (whichever has a workout)
-  let checkDate: Date;
   let streak = 0;
+  let expectedISO: string;
   
   if (uniqueDates.includes(todayISO)) {
-    checkDate = new Date(today);
     streak = 1;
+    expectedISO = yesterdayISO;
   } else if (uniqueDates.includes(yesterdayISO)) {
-    checkDate = new Date(yesterday);
     streak = 1;
+    const dayBefore = new Date(yesterdayDate);
+    dayBefore.setDate(dayBefore.getDate() - 1);
+    expectedISO = localTodayISO(dayBefore);
   } else {
-    // No workout today or yesterday, streak is 0
     return 0;
   }
   
-  checkDate.setHours(0, 0, 0, 0);
-  
-  // Check consecutive days backwards
-  let expectedDate = new Date(checkDate);
-  expectedDate.setDate(expectedDate.getDate() - 1);
-  
   for (const dateStr of uniqueDates) {
-    if (dateStr === todayISO || dateStr === yesterdayISO) continue; // Already counted
+    if (dateStr === todayISO || dateStr === yesterdayISO) continue;
     
-    const logDate = new Date(dateStr);
-    logDate.setHours(0, 0, 0, 0);
-    
-    const expectedISO = expectedDate.toISOString().slice(0, 10);
     if (dateStr === expectedISO) {
       streak++;
-      expectedDate.setDate(expectedDate.getDate() - 1);
-    } else {
-      // Gap found, streak is broken
+      const next = new Date(`${expectedISO}T12:00:00`);
+      next.setDate(next.getDate() - 1);
+      expectedISO = localTodayISO(next);
+    } else if (dateStr < expectedISO) {
       break;
     }
   }

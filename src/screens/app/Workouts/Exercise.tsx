@@ -1,18 +1,19 @@
-import React, { useState } from 'react';
-import { View, Text } from 'react-native';
-import { useNavigation, useRoute } from '@react-navigation/native';
+import React, { useState, useCallback } from 'react';
+import { View, Text, Pressable, Linking } from 'react-native';
+import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
 import IconButton from '~/components/Buttons/IconButton';
 import FullBleed from '~/components/Layout/FullBleed';
 import CustomButton from '~/components/Buttons/CustomButton';
 import { repsForSet } from '~/data/helpers/workoutRun';
+import { localTodayISO } from '~/data/helpers/date';
+import { getLogsForItem, type ClientWorkoutLog } from '~/data/supabase/clientWorkoutLogsHandler';
+import { useUserStore } from '~/data/store/userStore';
 import type { WorkoutItem } from '~/data/types';
 import __base from '~/assets/styles/base';
-import { Pressable } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import TimerBar from '~/components/Layout/Blocks/TimerBar';
-import { Dimensions } from 'react-native';
-
-const { width, height } = Dimensions.get('window');
+import PastSetRow from '~/components/Blocks/PastSetRow';
+import { isYouTubeUrl } from '~/components/Layout/BgVideo';
 
 // "300s" => "300 seconds", "10" => "10 reps"
 const formatToken = (t?: string) => {
@@ -32,26 +33,34 @@ const tokenToSeconds = (t?: string | number | null) => {
   return m ? parseInt(m[1], 10) : null;
 };
 
-
-type Params = { 
-  item: WorkoutItem; 
-  setIndex: number; 
+type Params = {
+  item: WorkoutItem;
+  setIndex: number;
   supersetNum: number;
-  returnTo?: 'Home' | 'Schedule'; // Track where we came from
+  returnTo?: 'Home' | 'Schedule';
 };
 
 export default function Exercise() {
   const nav = useNavigation<any>();
   const { params } = useRoute<any>();
+  const client = useUserStore((s) => s.client);
   const item: WorkoutItem = params?.item;
   const setIndex: number = params?.setIndex ?? 0;
   const supersetNum: number = params?.supersetNum ?? 1;
   const returnTo: 'Home' | 'Schedule' | undefined = params?.returnTo;
+  const itemsAll: WorkoutItem[] = params?.itemsAll ?? [];
 
-  // Use custom_exercise_name if available, otherwise fall back to exercise.name
   const title = (item?.customExerciseName?.trim() || item?.exercise?.name) ?? 'Exercise';
   const headerImg = item?.exercise?.cover ?? undefined;
   const headerVideo = item?.exercise?.video ?? undefined;
+  const canOpenYouTube = !!headerVideo && isYouTubeUrl(headerVideo);
+
+  const openYouTube = () => {
+    if (!headerVideo) return;
+    Linking.openURL(headerVideo).catch(() => {
+      console.warn('Could not open YouTube URL', headerVideo);
+    });
+  };
 
   const description = item?.exercise?.description ?? '';
   const notes = item?.notes ?? '';
@@ -59,15 +68,32 @@ export default function Exercise() {
   const targetReps = formatToken(String(targetToken || '').trim());
   const showWeight = item?.weight != null;
 
-  const [running, setRunning] = useState(false);
-
   const [isPlaying, setIsPlaying] = useState(false);
   const [hasStarted, setHasStarted] = useState(false);
   const [remainingSeconds, setRemainingSeconds] = useState<number | null>(null);
+  const [pastLogs, setPastLogs] = useState<ClientWorkoutLog[]>([]);
 
   const token = repsForSet(item, setIndex);
   const seconds = tokenToSeconds(token);
   const displaySeconds = remainingSeconds ?? seconds;
+  const todayISO = localTodayISO();
+
+  useFocusEffect(
+    useCallback(() => {
+      let alive = true;
+      (async () => {
+        if (!client?.id || !item?.id) return;
+        try {
+          const logs = await getLogsForItem(client.id, item.id, todayISO);
+          if (alive) setPastLogs(logs);
+        } catch (error) {
+          console.error('Error loading past logs:', error);
+        }
+      })();
+      return () => { alive = false; };
+      // eslint-disable-next-line react-hooks/exhaustive-deps -- refresh on focus for this item/date
+    }, [client?.id, item?.id])
+  );
 
   const start = () => {
     if (seconds != null && remainingSeconds == null) setRemainingSeconds(seconds);
@@ -75,33 +101,46 @@ export default function Exercise() {
     setHasStarted(true);
   };
   const pause = () => setIsPlaying(false);
-  const done  = () => {
-    const todayISO = new Date().toISOString().slice(0, 10);
-    nav.navigate('LogExercise', {
+  const done = () => {
+    // Replace so the workout player doesn't stack Log/Exercise screens
+    nav.replace('LogExercise', {
       item,
       setIndex,
       supersetNum,
-      itemsAll: params?.itemsAll,   // keep the chain
+      itemsAll: params?.itemsAll,
       idxAll: params?.idxAll,
-      returnTo, // pass returnTo to LogExercise
+      returnTo,
       date: todayISO,
     });
   };
 
-
-  const handleStart = () => setRunning(true);
-  const handleDone = () => {
-    const todayISO = new Date().toISOString().slice(0, 10);
+  const openPastLog = (logIndex: number) => {
     nav.navigate('LogExercise', {
       item,
-      setIndex,
+      setIndex: logIndex,
       supersetNum,
-      itemsAll: params?.itemsAll,   // keep the chain
+      itemsAll,
       idxAll: params?.idxAll,
-      returnTo, // pass returnTo to LogExercise
+      mode: 'history',
+      returnTo,
       date: todayISO,
     });
   };
+
+  const pastSetsBlock = pastLogs.length > 0 && !isPlaying && (
+    <View style={{ gap: 8 }}>
+      <Text style={__base.textLabel}>Past sets</Text>
+      {pastLogs.map((log, idx) => (
+        <PastSetRow
+          key={log.id}
+          log={log}
+          setNumber={idx + 1}
+          showWeight={showWeight}
+          onPress={() => openPastLog(idx)}
+        />
+      ))}
+    </View>
+  );
 
   const secondsBlock = !!seconds && (
     <View style={{ flex: 1 }}>
@@ -114,13 +153,32 @@ export default function Exercise() {
     <FullBleed
       backgroundUri={headerImg}
       backgroundVideoUri={headerVideo}
-      darkOverlay={!isPlaying}                  // 👈 overlay disappears when playing
-      Top={<IconButton route={returnTo || 'Home'} />}
+      darkOverlay={!isPlaying}
+      Top={<IconButton route={returnTo || 'Home'} icon="close" />}
       Center={
-        !isPlaying && (                         // 👈 title/description hidden while playing
+        !isPlaying && (
           <View style={{ marginBottom: 20, flex: 1 }}>
             <Text style={__base.headline}>{title}</Text>
             {!!description && <Text style={__base.text}>{description}</Text>}
+            {canOpenYouTube && (
+              <Pressable
+                onPress={openYouTube}
+                style={{
+                  marginTop: 12,
+                  alignSelf: 'flex-start',
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 8,
+                  borderWidth: 1,
+                  borderColor: '#ffffff80',
+                  paddingVertical: 8,
+                  paddingHorizontal: 12,
+                }}
+              >
+                <Feather name="play-circle" size={18} color="#FFF" />
+                <Text style={__base.text}>Open in YouTube</Text>
+              </Pressable>
+            )}
           </View>
         )
       }
@@ -149,6 +207,9 @@ export default function Exercise() {
                 <Text style={__base.text}>{notes}</Text>
               </View>
             )}
+
+            {pastSetsBlock}
+
             <CustomButton title={hasStarted ? 'Continue' : 'Start'} backgroundColor="#00000055" textColor="#FFF" onPress={start}/>
           </View>
         ) : (

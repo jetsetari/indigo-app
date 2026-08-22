@@ -15,8 +15,8 @@ import ForgotPassword from '~/screens/register/ForgotPassword';
 import Metrics from '~/screens/intake/Metrics';
 import Goals from '~/screens/intake/Goals';
 import Level from '~/screens/intake/Level';
-import EatingHabits from '~/screens/intake/EatingHabits';
-import Supplements from '~/screens/intake/Supplements';
+// import EatingHabits from '~/screens/intake/EatingHabits';
+// import Supplements from '~/screens/intake/Supplements';
 
 import Home from '~/screens/app/Home';
 
@@ -139,8 +139,10 @@ export default function Routes() {
               <Stack.Screen name="Metrics" component={Metrics} />
               <Stack.Screen name="Goals" component={Goals} />
               <Stack.Screen name="Level" component={Level} />
+              {/* EatingHabits + Supplements temporarily removed from onboarding
               <Stack.Screen name="EatingHabits" component={EatingHabits} />
               <Stack.Screen name="Supplements" component={Supplements} />
+              */}
               <Stack.Screen name="Home" component={Home} />
               <Stack.Screen name="Schedule" component={Workouts} />
               <Stack.Screen name="SelectWorkout" component={SelectWorkout} />

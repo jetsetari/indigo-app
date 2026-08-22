@@ -80,7 +80,7 @@ const i18n = {
       screenTitle: 'Measurements',
       header: {
         title: 'Hi {{name}},',
-        subtitle: "Let's see where you're at,\nso we know where to go",
+        subtitle: "Let's see where you're at\nso we know where to go",
       },
       system: { 
         label: 'Units', 

@@ -13,7 +13,7 @@ import { useUserStore } from '~/data/store/userStore';
 
 import { fetchDayByDate } from '~/data/supabase/workoutsHandler';
 import { getLogsForDate } from '~/data/supabase/clientWorkoutLogsHandler';
-import { groupBySupersetNumber, setsCountForGroup } from '~/data/helpers/workoutRun';
+import { groupBySupersetNumber, setsCountForItem, findNextIncompleteStep } from '~/data/helpers/workoutRun';
 import { useMemo } from 'react';
 import FirstItem from '~/components/Layout/FirstItem';
 import Supersets from '~/components/Blocks/Supersets';
@@ -32,10 +32,6 @@ export default function Workouts() {
   const [loadingDay, setLoadingDay] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
-  const countSetsFromReps = (reps?: string | null) => {
-    if (!reps) return 1;
-    return reps.split(',').map(s => s.trim()).filter(Boolean).length || 1;
-  };
   // week state (start on Monday of current week)
   const [weekStart, setWeekStart] = useState(dayjs().startOf('week').add(1, 'day').format('YYYY-MM-DD'));
   const [selectedDate, setSelectedDate] = useState(todayISO);
@@ -125,39 +121,10 @@ export default function Workouts() {
     }, [loadSelectedDay, loadWeekStatus, loadLogs])
   );
 
-  // Find next exercise to do
+  // Find next incomplete exercise in supersets order (skips already-logged sets)
   const findNextExercise = () => {
     if (!selectedDay?.items?.length) return null;
-
-    const items = selectedDay.items;
-    const groupMap = groupBySupersetNumber(items);
-    const supersetKeys = Array.from(groupMap.keys()).sort((a, b) => a - b);
-
-    // Find first superset with incomplete exercises
-    for (const supersetNum of supersetKeys) {
-      const group = groupMap.get(supersetNum) ?? [];
-      const totalSets = setsCountForGroup(group);
-
-      // Check each set
-      for (let setIndex = 0; setIndex < totalSets; setIndex++) {
-        // Find first exercise in this set that's not done
-        for (const item of group) {
-          const loggedSets = logsCountByItem.get(item.id) ?? 0;
-          if (loggedSets <= setIndex) {
-            return { item, setIndex, supersetNum };
-          }
-        }
-      }
-    }
-
-    // All done, return first exercise
-    const firstSuperset = supersetKeys[0] ?? 0;
-    const firstGroup = groupMap.get(firstSuperset) ?? [];
-    if (firstGroup.length > 0) {
-      return { item: firstGroup[0], setIndex: 0, supersetNum: firstSuperset };
-    }
-
-    return null;
+    return findNextIncompleteStep(selectedDay.items, logsCountByItem);
   };
 
   // Check if entire workout is complete
@@ -166,8 +133,7 @@ export default function Workouts() {
     
     const items = selectedDay.items;
     return items.every((item: any) => {
-      const repsArray = item.reps ? item.reps.split(',').map((s: string) => s.trim()).filter(Boolean) : [];
-      const totalSets = Math.max(repsArray.length, item.sets ?? 1);
+      const totalSets = setsCountForItem(items, item.id);
       const loggedSets = logsCountByItem.get(item.id) ?? 0;
       return loggedSets >= totalSets;
     });
@@ -177,9 +143,8 @@ export default function Workouts() {
     // If workout is complete, navigate to first exercise's LogExercise in readonly
     if (isWorkoutComplete && selectedDay?.items?.length) {
       const firstItem = selectedDay.items[0];
-      const repsArray = firstItem.reps ? firstItem.reps.split(',').map((s: string) => s.trim()).filter(Boolean) : [];
-      const totalSets = Math.max(repsArray.length, firstItem.sets ?? 1);
       const itemsAll = selectedDay.items;
+      const totalSets = setsCountForItem(itemsAll, firstItem.id);
       const idxAll = 0;
       
       // Find superset number for first item
@@ -198,7 +163,7 @@ export default function Workouts() {
         supersetNum: firstSupersetNum,
         itemsAll,
         idxAll,
-        readonly: true,
+        mode: 'history',
         returnTo: 'Schedule',
         date: selectedDate,
       });
@@ -213,8 +178,7 @@ export default function Workouts() {
     const idxAll = itemsAll.findIndex((x: any) => x.id === item.id);
 
     // Check if all sets are done for this exercise
-    const repsArray = item.reps ? item.reps.split(',').map(s => s.trim()).filter(Boolean) : [];
-    const totalSets = Math.max(repsArray.length, item.sets ?? 1);
+    const totalSets = setsCountForItem(itemsAll, item.id);
     const loggedSets = logsCountByItem.get(item.id) ?? 0;
     const allSetsDone = loggedSets >= totalSets;
     
@@ -226,7 +190,7 @@ export default function Workouts() {
         supersetNum,
         itemsAll,
         idxAll,
-        readonly: true,
+        mode: 'history',
         returnTo: 'Schedule',
         date: selectedDate,
       });

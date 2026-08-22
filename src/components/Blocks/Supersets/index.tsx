@@ -3,7 +3,7 @@ import { View, Text } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import ExerciseItem from '~/components/Blocks/ExerciseItem';
 import { groupBySuperset, colorForSuperset } from '~/data/helpers/workouts';
-import { groupBySupersetNumber } from '~/data/helpers/workoutRun';
+import { groupBySupersetNumber, setsCountForItem } from '~/data/helpers/workoutRun';
 import { getLogsForDate } from '~/data/supabase/clientWorkoutLogsHandler';
 import { useUserStore } from '~/data/store/userStore';
 import type { WorkoutItem } from '~/data/types';
@@ -51,8 +51,7 @@ export default function Supersets({ items, selectedDate }: Props) {
 
     // Find set index (how many sets are logged for this item)
     const loggedSets = logsCountByItem.get(item.id) ?? 0;
-    const repsArray = item.reps ? item.reps.split(',').map(s => s.trim()).filter(Boolean) : [];
-    const totalSets = Math.max(repsArray.length, item.sets ?? 1);
+    const totalSets = setsCountForItem(items, item.id);
     const setIndex = Math.min(loggedSets, totalSets - 1);
 
     // Check if all sets are done
@@ -61,19 +60,17 @@ export default function Supersets({ items, selectedDate }: Props) {
     const idxAll = itemsAll.findIndex(x => x.id === item.id);
 
     if (allSetsDone) {
-      // Navigate to LogExercise in readonly mode
       navigation.navigate('LogExercise', {
         item,
-        setIndex: totalSets - 1,
+        setIndex: Math.max(0, totalSets - 1),
         supersetNum,
         itemsAll,
         idxAll,
-        readonly: true,
+        mode: 'history',
         returnTo: 'Schedule',
         date: selectedDate,
       });
     } else {
-      // Navigate to Exercise screen
       navigation.navigate('Exercise', {
         item,
         setIndex,
@@ -109,8 +106,7 @@ export default function Supersets({ items, selectedDate }: Props) {
                 const { border: itemBorder, bg: itemBg } = colorForSuperset(it.supersetLabel);
                 
                 // Check if this exercise is done (all sets logged)
-                const repsArray = it.reps ? it.reps.split(',').map(s => s.trim()).filter(Boolean) : [];
-                const totalSets = Math.max(repsArray.length, it.sets ?? 1);
+                const totalSets = setsCountForItem(items, it.id);
                 const loggedSets = logsCountByItem.get(it.id) ?? 0;
                 const done = loggedSets >= totalSets;
                 const setsProgress = `${loggedSets}/${totalSets}`;

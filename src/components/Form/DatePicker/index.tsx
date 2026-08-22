@@ -1,6 +1,6 @@
 // src/components/Form/FormDatePicker.tsx
-import React, { useMemo, useState } from 'react';
-import { Platform, View, Text, TouchableOpacity, Modal } from 'react-native';
+import React, { useState } from 'react';
+import { Platform, View, Text, TouchableOpacity, Modal, Alert } from 'react-native';
 import { Controller, type FieldValues, type Path } from 'react-hook-form';
 import { Feather } from '@expo/vector-icons';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
@@ -22,6 +22,21 @@ export type FormDatePickerProps<T extends FieldValues = FieldValues> = {
   displayFormat?: (date: Date) => string;
 };
 
+function toValidDate(value: unknown): Date {
+  if (value instanceof Date && !Number.isNaN(value.getTime())) return value;
+  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}/.test(value)) {
+    const parsed = new Date(`${value.slice(0, 10)}T00:00:00`);
+    if (!Number.isNaN(parsed.getTime())) return parsed;
+  }
+  return new Date();
+}
+
+function hasDateValue(value: unknown): boolean {
+  if (value instanceof Date) return !Number.isNaN(value.getTime());
+  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}/.test(value)) return true;
+  return false;
+}
+
 export default function FormDatePicker<T extends FieldValues = FieldValues>({
   control,
   name,
@@ -36,13 +51,13 @@ export default function FormDatePicker<T extends FieldValues = FieldValues>({
 }: FormDatePickerProps<T>) {
   const [focused, setFocused] = useState(false);
   const [iosOpen, setIosOpen] = useState(false);
-  const isIOS = Platform.OS === 'ios';
   const [touched, setTouched] = useState(false);
+  const isIOS = Platform.OS === 'ios';
 
   const format = (d?: Date | null) =>
     d ? (displayFormat ? displayFormat(d) : d.toLocaleDateString()) : (placeholder || label);
 
-  const open = () => (isIOS ? setIosOpen(true) : setFocused(f => !f));
+  const open = () => (isIOS ? setIosOpen(true) : setFocused((f) => !f));
   const close = () => (isIOS ? setIosOpen(false) : setFocused(false));
   const onPickerChange = (onChange: (date: Date | null) => void) => (e: DateTimePickerEvent, d?: Date) => {
     if (e.type === 'set') onChange(d ?? null);
@@ -56,11 +71,10 @@ export default function FormDatePicker<T extends FieldValues = FieldValues>({
       name={name}
       rules={{ validate: (v: unknown) => runDateValidators((v as Date) ?? null, rules, !!required) }}
       render={({ field: { value, onChange }, fieldState: { error } }) => {
-        const errorMsg = useMemo(() => {
-          if (!touched) return '';
-          const res = runDateValidators((value as Date) ?? null, rules, !!required);
-          return res === true ? '' : (res as string);
-        }, [value, rules, required, touched]);
+        const selectedDate = hasDateValue(value) ? toValidDate(value) : null;
+        const pickerValue = selectedDate ?? new Date();
+        const validation = runDateValidators(selectedDate, rules, !!required);
+        const errorMsg = touched && validation !== true ? String(validation) : '';
 
         return (
           <View style={__base.inputWrapper}>
@@ -70,20 +84,27 @@ export default function FormDatePicker<T extends FieldValues = FieldValues>({
                 {required && <Text style={__base.asterix}> *</Text>}
               </Text>
               {!!info && (
-                <TouchableOpacity onPress={() => alert(info)} style={__base.info}>
+                <TouchableOpacity onPress={() => Alert.alert(label, info)} style={__base.info}>
                   <Feather name="info" size={18} color={'#888'} />
                 </TouchableOpacity>
               )}
             </View>
-            <TouchableOpacity activeOpacity={0.9} style={styles.input} onPress={() => { open(); setTouched(true); }}>
-              <Text style={styles.dateText}>{format((value as Date) ?? null)}</Text>
+            <TouchableOpacity
+              activeOpacity={0.9}
+              style={styles.input}
+              onPress={() => {
+                open();
+                setTouched(true);
+              }}
+            >
+              <Text style={styles.dateText}>{format(selectedDate)}</Text>
               <Feather name="calendar" size={18} color="#FFF" />
             </TouchableOpacity>
             {!isIOS && focused && (
               <DateTimePicker
                 mode="date"
                 display="calendar"
-                value={(value as Date) ?? new Date()}
+                value={pickerValue}
                 onChange={onPickerChange(onChange)}
                 minimumDate={minimumDate}
                 maximumDate={maximumDate}
@@ -96,7 +117,7 @@ export default function FormDatePicker<T extends FieldValues = FieldValues>({
                     <DateTimePicker
                       mode="date"
                       display="spinner"
-                      value={(value as Date) ?? new Date()}
+                      value={pickerValue}
                       onChange={onPickerChange(onChange)}
                       minimumDate={minimumDate}
                       maximumDate={maximumDate}

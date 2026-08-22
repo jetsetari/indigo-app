@@ -30,15 +30,17 @@ export function runValidators(
           return rule.message || 'Please enter a valid email address';
         break;
       case 'minLength':
-        if (val.length < rule.value)
+        // Optional fields: only enforce length when a value is present
+        if (val !== '' && val.length < rule.value)
           return rule.message || `Must be at least ${rule.value} characters`;
         break;
       case 'maxLength':
-        if (val.length > rule.value)
+        if (val !== '' && val.length > rule.value)
           return rule.message || `Must be at most ${rule.value} characters`;
         break;
       case 'regex':
-        if (!rule.value.test(val))
+        // Optional fields: only validate format when a value is present
+        if (val !== '' && !rule.value.test(val))
           return rule.message || 'Invalid format';
         break;
     }

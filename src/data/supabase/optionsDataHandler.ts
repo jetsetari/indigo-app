@@ -63,7 +63,8 @@ function buildHalfHourOptions(): HoursOption[] {
 export async function getLevelOptions(): Promise<LevelOptions> {
   const { data, error } = await supabase
     .from('options_experiences')
-    .select('slug,label,type')
+    .select('slug,label,type,sort_order')
+    .order('sort_order', { ascending: true, nullsFirst: false })
     .order('label', { ascending: true });
 
   if (error) throw error;

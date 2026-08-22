@@ -18,11 +18,14 @@ import { useUserStore } from '~/data/store/userStore';
 import {
   fetchDayByDate,
   fetchSelectableWeekWorkouts,
+  fetchUpcomingWorkouts,
   moveWorkoutToDate,
+  skipWorkoutDay,
   type SelectableWeekWorkout,
 } from '~/data/supabase/workoutsHandler';
 import { getLogsForDate, getTotalWorkouts, getWorkoutStreak } from '~/data/supabase/clientWorkoutLogsHandler';
-import { groupBySupersetNumber, setsCountForGroup } from '~/data/helpers/workoutRun';
+import { groupBySupersetNumber, setsCountForItem, findNextIncompleteStep } from '~/data/helpers/workoutRun';
+import { localTodayISO } from '~/data/helpers/date';
 
 import __base from '~/assets/styles/base';
 import { styles } from '~/assets/styles/screens/StartStyles';
@@ -41,7 +44,9 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [todayDay, setTodayDay] = useState<any | null>(null);
   const [weekOptions, setWeekOptions] = useState<SelectableWeekWorkout[]>([]);
+  const [upcomingOptions, setUpcomingOptions] = useState<SelectableWeekWorkout[]>([]);
   const [movingDayId, setMovingDayId] = useState<number | null>(null);
+  const [skippingDayId, setSkippingDayId] = useState<number | null>(null);
   const [logsCountByItem, setLogsCountByItem] = useState<Map<number, number>>(new Map());
   const [badges, setBadges] = useState({
     streak: 0,
@@ -52,18 +57,22 @@ export default function Home() {
     if (!client?.id) return;
     setLoading(true);
     try {
-      const todayISO = new Date().toISOString().slice(0, 10);
-      const day = await fetchDayByDate(client.id, todayISO);
+      const todayISO = localTodayISO();
+      const [day, options] = await Promise.all([
+        fetchDayByDate(client.id, todayISO),
+        fetchSelectableWeekWorkouts(client.id, todayISO, 3),
+      ]);
       setTodayDay(day);
-      if (!day) {
-        const options = await fetchSelectableWeekWorkouts(client.id, todayISO, 3);
-        setWeekOptions(options);
-      } else {
-        setWeekOptions([]);
-      }
+      setWeekOptions(options);
+      setUpcomingOptions(
+        !day && options.length === 0
+          ? await fetchUpcomingWorkouts(client.id, todayISO, 3)
+          : []
+      );
     } catch {
       setTodayDay(null);
       setWeekOptions([]);
+      setUpcomingOptions([]);
     } finally {
       setLoading(false);
     }
@@ -79,7 +88,7 @@ export default function Home() {
     let alive = true;
     (async () => {
       try {
-        const todayISO = new Date().toISOString().slice(0, 10);
+        const todayISO = localTodayISO();
         const counts = await getLogsForDate(client.id, todayISO);
         if (alive) setLogsCountByItem(counts);
       } catch (error) {
@@ -126,7 +135,7 @@ export default function Home() {
       if (client?.id) {
         (async () => {
           try {
-            const todayISO = new Date().toISOString().slice(0, 10);
+            const todayISO = localTodayISO();
             const counts = await getLogsForDate(client.id, todayISO);
             setLogsCountByItem(counts);
           } catch (error) {
@@ -155,13 +164,11 @@ export default function Home() {
   );
 
   const handleSelectWeekWorkout = (workout: SelectableWeekWorkout) => {
-    if (!client?.id || movingDayId) return;
+    if (!client?.id || movingDayId || skippingDayId) return;
 
     const title = workout.title?.trim() || `Day ${workout.dayIndex}`;
-    const fromLabel = workout.date
-      ? dayjs(workout.date).format('dddd')
-      : `Day ${workout.dayIndex}`;
-    const todayISO = new Date().toISOString().slice(0, 10);
+    const fromLabel = workoutDateLabel(workout);
+    const todayISO = localTodayISO();
     const message = workout.date
       ? `Move "${title}" from ${fromLabel} to today so you can train now.`
       : `Assign "${title}" to today so you can train now.`;
@@ -176,7 +183,13 @@ export default function Home() {
           onPress: async () => {
             setMovingDayId(workout.id);
             try {
-              await moveWorkoutToDate(client.id, workout.id, workout.date, todayISO);
+              await moveWorkoutToDate(
+                client.id,
+                workout.id,
+                workout.date,
+                todayISO,
+                todayDay?.id
+              );
               await loadTodayDay();
               const counts = await getLogsForDate(client.id, todayISO);
               setLogsCountByItem(counts);
@@ -192,39 +205,102 @@ export default function Home() {
     );
   };
 
-  // Find next exercise to do
+  const handleSkipWorkout = (workout: SelectableWeekWorkout) => {
+    if (movingDayId || skippingDayId) return;
+
+    const title = workout.title?.trim() || `Day ${workout.dayIndex}`;
+    Alert.alert(
+      'Skip this workout?',
+      `"${title}" will be marked as skipped and will not be offered again.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Skip',
+          style: 'destructive',
+          onPress: async () => {
+            setSkippingDayId(workout.id);
+            try {
+              await skipWorkoutDay(workout.id);
+              await loadTodayDay();
+            } catch (error) {
+              console.error('Error skipping workout:', error);
+              Alert.alert('Could not skip workout', 'Please try again.');
+            } finally {
+              setSkippingDayId(null);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const renderWorkoutCards = (options: SelectableWeekWorkout[]) =>
+    options.map((workout) => {
+      const title = workout.title?.trim() || `Day ${workout.dayIndex}`;
+      const dayLabel = workoutDayLabel(workout);
+      const isMoving = movingDayId === workout.id;
+      const isSkipping = skippingDayId === workout.id;
+      const isBusy = movingDayId !== null || skippingDayId !== null;
+
+      return (
+        <View
+          key={workout.id}
+          style={[homeStyles.pickCard, (isMoving || isSkipping) && homeStyles.pickCardDisabled]}
+        >
+          <View style={homeStyles.pickCardBody}>
+            <View style={homeStyles.pickCardHeader}>
+              <View style={homeStyles.pickCardLeft}>
+                <Text style={[homeStyles.pickDay, workout.isMissed && homeStyles.missedLabel]}>
+                  {dayLabel}
+                </Text>
+                <Text style={homeStyles.pickTitle}>{title}</Text>
+              </View>
+              {(isMoving || isSkipping) && <ActivityIndicator color="#4DD4AC" />}
+            </View>
+            {workout.previewExercises.length > 0 && (
+              <View style={homeStyles.previewList}>
+                {workout.previewExercises.map((name, index) => (
+                  <Text
+                    key={`${workout.id}-${index}`}
+                    style={[
+                      homeStyles.previewExercise,
+                      { opacity: PREVIEW_OPACITIES[index] ?? 0.08 },
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {name}
+                  </Text>
+                ))}
+              </View>
+            )}
+            <View style={homeStyles.cardActions}>
+              {workout.isMissed && (
+                <TouchableOpacity
+                  style={homeStyles.skipButton}
+                  onPress={() => handleSkipWorkout(workout)}
+                  disabled={isBusy}
+                >
+                  <Text style={homeStyles.skipButtonText}>Skip</Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity
+                style={homeStyles.selectButton}
+                onPress={() => handleSelectWeekWorkout(workout)}
+                disabled={isBusy}
+              >
+                <Text style={homeStyles.selectButtonText}>Select</Text>
+                <Feather name="chevron-right" size={18} color="#000" />
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      );
+    });
+
+  // Find next incomplete exercise in supersets order (skips already-logged sets)
   const findNextExercise = () => {
     if (!todayDay?.items?.length) return null;
-
-    const items = todayDay.items;
-    const groupMap = groupBySupersetNumber(items);
-    const supersetKeys = Array.from(groupMap.keys()).sort((a, b) => a - b);
-
-    // Find first superset with incomplete exercises
-    for (const supersetNum of supersetKeys) {
-      const group = groupMap.get(supersetNum) ?? [];
-      const totalSets = setsCountForGroup(group);
-
-      // Check each set
-      for (let setIndex = 0; setIndex < totalSets; setIndex++) {
-        // Find first exercise in this set that's not done
-        for (const item of group) {
-          const loggedSets = logsCountByItem.get(item.id) ?? 0;
-          if (loggedSets <= setIndex) {
-            return { item, setIndex, supersetNum };
-          }
-        }
-      }
-    }
-
-    // All done, return first exercise
-    const firstSuperset = supersetKeys[0] ?? 0;
-    const firstGroup = groupMap.get(firstSuperset) ?? [];
-    if (firstGroup.length > 0) {
-      return { item: firstGroup[0], setIndex: 0, supersetNum: firstSuperset };
-    }
-
-    return null;
+    return findNextIncompleteStep(todayDay.items, logsCountByItem);
   };
 
   // Check if entire workout is complete
@@ -233,8 +309,7 @@ export default function Home() {
     
     const items = todayDay.items;
     return items.every((item: any) => {
-      const repsArray = item.reps ? item.reps.split(',').map((s: string) => s.trim()).filter(Boolean) : [];
-      const totalSets = Math.max(repsArray.length, item.sets ?? 1);
+      const totalSets = setsCountForItem(items, item.id);
       const loggedSets = logsCountByItem.get(item.id) ?? 0;
       return loggedSets >= totalSets;
     });
@@ -244,9 +319,8 @@ export default function Home() {
     // If workout is complete, navigate to first exercise's LogExercise in readonly
     if (isWorkoutComplete && todayDay?.items?.length) {
       const firstItem = todayDay.items[0];
-      const repsArray = firstItem.reps ? firstItem.reps.split(',').map((s: string) => s.trim()).filter(Boolean) : [];
-      const totalSets = Math.max(repsArray.length, firstItem.sets ?? 1);
       const itemsAll = todayDay.items;
+      const totalSets = setsCountForItem(itemsAll, firstItem.id);
       const idxAll = 0;
       
       // Find superset number for first item
@@ -259,14 +333,14 @@ export default function Home() {
         }
       }
 
-      const todayISO = new Date().toISOString().slice(0, 10);
+      const todayISO = localTodayISO();
       navigation.navigate('LogExercise', {
         item: firstItem,
         setIndex: totalSets - 1,
         supersetNum: firstSupersetNum,
         itemsAll,
         idxAll,
-        readonly: true,
+        mode: 'history',
         returnTo: 'Home',
         date: todayISO,
       });
@@ -281,20 +355,19 @@ export default function Home() {
     const idxAll = itemsAll.findIndex((x: any) => x.id === item.id);
 
     // Check if all sets are done for this exercise
-    const repsArray = item.reps ? item.reps.split(',').map(s => s.trim()).filter(Boolean) : [];
-    const totalSets = Math.max(repsArray.length, item.sets ?? 1);
+    const totalSets = setsCountForItem(itemsAll, item.id);
     const loggedSets = logsCountByItem.get(item.id) ?? 0;
     const allSetsDone = loggedSets >= totalSets;
 
     if (allSetsDone) {
-      const todayISO = new Date().toISOString().slice(0, 10);
+      const todayISO = localTodayISO();
       navigation.navigate('LogExercise', {
         item,
         setIndex: totalSets - 1,
         supersetNum,
         itemsAll,
         idxAll,
-        readonly: true,
+        mode: 'history',
         returnTo: 'Home',
         date: todayISO,
       });
@@ -320,6 +393,7 @@ export default function Home() {
   // Badge data
   const hasStreakBadge = badges.streak >= 3;
   const hasTotalWorkoutsBadge = badges.totalWorkouts >= 10;
+  const missedOptions = weekOptions.filter((workout) => workout.isMissed);
 
   return (
     <>
@@ -335,60 +409,31 @@ export default function Home() {
           </View>
           {todayDay ? (
             <View style={styles.section}>
-              <SupersetsXs items={todayDay.items ?? []} selectedDate={new Date().toISOString().slice(0, 10)} />
-              <CustomButton title={isWorkoutComplete ? "Edit Exercises" : "Start Workout"} backgroundColor="#000" textColor="#4DD4AC" borderColor='#4DD4AC' onPress={handleStartWorkout} />
+              <View style={{ marginBottom: 8 }}>
+                <CustomButton title={isWorkoutComplete ? "Edit Exercises" : "Start Workout"} backgroundColor="#000" textColor="#4DD4AC" borderColor='#4DD4AC' onPress={handleStartWorkout} />
+              </View>
+              <SupersetsXs items={todayDay.items ?? []} selectedDate={localTodayISO()} />
             </View>
           ) : weekOptions.length > 0 ? (
             <View style={homeStyles.pickSection}>
               <Text style={homeStyles.pickHint}>
-                No workout scheduled for today. Pick one from this week to train now.
+                {missedOptions.length > 0
+                  ? 'You have uncompleted workouts, would you like to complete them now?'
+                  : 'No workout scheduled for today. Pick one from this week to train now.'}
               </Text>
-              {weekOptions.map((workout) => {
-                const title = workout.title?.trim() || `Day ${workout.dayIndex}`;
-                const dayLabel = workout.date
-                  ? dayjs(workout.date).format('dddd')
-                  : `Day ${workout.dayIndex}`;
-                const isMoving = movingDayId === workout.id;
-                return (
-                  <TouchableOpacity
-                    key={workout.id}
-                    style={[homeStyles.pickCard, isMoving && homeStyles.pickCardDisabled]}
-                    onPress={() => handleSelectWeekWorkout(workout)}
-                    disabled={movingDayId !== null}
-                    activeOpacity={0.7}
-                  >
-                    <View style={homeStyles.pickCardBody}>
-                      <View style={homeStyles.pickCardHeader}>
-                        <View style={homeStyles.pickCardLeft}>
-                          <Text style={homeStyles.pickDay}>{dayLabel}</Text>
-                          <Text style={homeStyles.pickTitle}>{title}</Text>
-                        </View>
-                        {isMoving ? (
-                          <ActivityIndicator color="#4DD4AC" />
-                        ) : (
-                          <Feather name="chevron-right" size={22} color="#888" />
-                        )}
-                      </View>
-                      {workout.previewExercises.length > 0 && (
-                        <View style={homeStyles.previewList}>
-                          {workout.previewExercises.map((name, index) => (
-                            <Text
-                              key={`${workout.id}-${index}`}
-                              style={[
-                                homeStyles.previewExercise,
-                                { opacity: PREVIEW_OPACITIES[index] ?? 0.08 },
-                              ]}
-                              numberOfLines={1}
-                            >
-                              {name}
-                            </Text>
-                          ))}
-                        </View>
-                      )}
-                    </View>
-                  </TouchableOpacity>
-                );
-              })}
+              {renderWorkoutCards(weekOptions)}
+              <TouchableOpacity
+                onPress={() => navigation.navigate('Schedule', { returnTo: 'Home' })}
+                style={homeStyles.manageLink}
+              >
+                <Text style={homeStyles.manageLinkText}>Manage schedule in Workouts</Text>
+              </TouchableOpacity>
+            </View>
+          ) : upcomingOptions.length > 0 ? (
+            <View style={homeStyles.pickSection}>
+              <Text style={homeStyles.pickHint}>All workouts of the week done.</Text>
+              <Text style={homeStyles.upcomingHeading}>Upcoming workouts</Text>
+              {renderWorkoutCards(upcomingOptions)}
               <TouchableOpacity
                 onPress={() => navigation.navigate('Schedule', { returnTo: 'Home' })}
                 style={homeStyles.manageLink}
@@ -452,6 +497,20 @@ export default function Home() {
 
 const PREVIEW_OPACITIES = [0.55, 0.35, 0.2, 0.1];
 
+function workoutDateLabel(workout: SelectableWeekWorkout): string {
+  if (!workout.date) return `Day ${workout.dayIndex}`;
+
+  const date = dayjs(workout.date);
+  const today = dayjs();
+  const weekEnd = today.subtract((today.day() + 6) % 7, 'day').add(6, 'day');
+  return date.isAfter(weekEnd, 'day') ? date.format('ddd, D MMM') : date.format('dddd');
+}
+
+function workoutDayLabel(workout: SelectableWeekWorkout): string {
+  const label = workoutDateLabel(workout);
+  return workout.isMissed ? `Missed · ${label}` : label;
+}
+
 const homeStyles = StyleSheet.create({
   pickSection: {
     marginTop: 8,
@@ -462,6 +521,11 @@ const homeStyles = StyleSheet.create({
     color: '#AAA',
     fontSize: 14,
     marginBottom: 4,
+  },
+  upcomingHeading: {
+    color: '#FFF',
+    fontSize: 15,
+    fontWeight: '600',
   },
   pickCard: {
     backgroundColor: '#111',
@@ -487,6 +551,9 @@ const homeStyles = StyleSheet.create({
     fontSize: 13,
     marginBottom: 2,
   },
+  missedLabel: {
+    color: '#FFB067',
+  },
   pickTitle: {
     color: '#FFF',
     fontSize: 16,
@@ -499,6 +566,37 @@ const homeStyles = StyleSheet.create({
   previewExercise: {
     color: '#FFF',
     fontSize: 13,
+  },
+  cardActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 8,
+    marginTop: 4,
+  },
+  skipButton: {
+    borderColor: '#555',
+    borderWidth: 1,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  skipButtonText: {
+    color: '#CCC',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  selectButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    backgroundColor: '#4DD4AC',
+    paddingLeft: 16,
+    paddingRight: 10,
+    paddingVertical: 8,
+  },
+  selectButtonText: {
+    color: '#000',
+    fontSize: 13,
+    fontWeight: '700',
   },
   manageLink: {
     paddingVertical: 8,

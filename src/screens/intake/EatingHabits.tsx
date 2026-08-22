@@ -85,25 +85,21 @@ export default function EatingHabits() {
         image={avatarUrl}
       />
 
-      {/* Eating style (single select grid → text) */}
+      {/* Eating style / meals / kcal — temporarily removed
       <FormSelectGrid
         control={control}
         name="eatingHabits"
         label={t.sections?.eating ?? 'Your eating style'}
-        options={eatingOptions /* [{label, description, icon, value}] or adapt to {label, value} if using the simpler variant */}
+        options={eatingOptions}
       />
-
-      {/* Meals per day (dropdown → number) */}
       <FormDropdown
         control={control}
         name="mealsPerDay"
         label={t.mealsPerDay?.label ?? 'How often do you eat in a day?'}
-        options={mealOptions /* array of {label,value:number} */}
+        options={mealOptions}
         parseAsNumber
         rules={[{ type: 'required', message: t.mealsPerDay?.required ?? 'Please choose one' }]}
       />
-
-      {/* Daily kcal intake (optional number) */}
       <FormInput
         control={control}
         name="dailyKcalIntake"
@@ -114,6 +110,7 @@ export default function EatingHabits() {
           { type: 'regex', value: /^\d+$/, message: t.kcal?.invalid ?? 'Please enter a whole number' },
         ]}
       />
+      */}
 
       <CustomButton
         title={isSubmitting ? (t.ctaSaving ?? 'Saving…') : (t.ctaNext ?? 'Next')}

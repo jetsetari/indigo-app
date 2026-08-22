@@ -130,20 +130,19 @@ export default function Metrics() {
       <FormHorizontalPicker control={control} name="weight" label={t.weight.label} unit={unit} min={min} max={max} />
       <FormInput control={control} name="desiredWeight" label={t.weightGoal.label} placeholder="" type="number" required rules={validateMetrics.desiredWeight} />
       <FormDropdown control={control} name="height" label={t.height.label} required options={heightOptions} parseAsNumber rules={validateMetrics.height} />
-      <Text style={[__base.textBold, { marginBottom: 6 }]}>{t.photos.label ?? 'Photos'}</Text>
-      <View style={[{ gap: 12, flexDirection: 'row', marginBottom: 20 }]}>
+      <Text style={[__base.textBold, { marginBottom: 6 }]}>{t.photos.label ?? 'Progress photos'}</Text>
+      <Text style={[__base.text, { color: '#AAA', marginBottom: 10, fontSize: 13 }]}>
+        Add front, side, and back photos, then run AI estimation to fill your fat percentage.
+      </Text>
+      <View style={[{ gap: 12, flexDirection: 'row', marginBottom: 16 }]}>
         <FormImageUpload control={control} name="pictureFront" filepath="clients/progress" variant="square" size={75} label={t.photos.front ?? 'Front'} />
         <FormImageUpload control={control} name="pictureSide"  filepath="clients/progress" variant="square" size={75} label={t.photos.side ?? 'Side'} />
         <FormImageUpload control={control} name="pictureBack"  filepath="clients/progress" variant="square" size={75} label={t.photos.back ?? 'Back'} />
       </View>
-      <View style={__base.rowGap}>
-        <View style={{ flex: 1, minWidth: 0 }}>
-          <FormInput control={control} name="bodyfat" label={t.fat.label} placeholder="%" type="number" rules={validateMetrics.bodyfat} />
-        </View>
-        <View style={{ marginBottom: 15, flexShrink: 0, marginLeft: 10 }}>
-          <CustomButton title={t.ctaCalc} backgroundColor="#FFF" textColor="#000" onPress={onCalculatePress} />
-        </View>
+      <View style={{ marginBottom: 16 }}>
+        <CustomButton title={t.ctaCalc} backgroundColor="#FFF" textColor="#000" onPress={onCalculatePress} />
       </View>
+      <FormInput control={control} name="bodyfat" label={t.fat.label} placeholder="%" type="number" rules={validateMetrics.bodyfat} />
       <CustomButton title={(isSettings ? 'Save & Close' : t.ctaNext)} backgroundColor="#000" textColor="#FFF" onPress={onSubmit} />
     </StickyHeader>
   );

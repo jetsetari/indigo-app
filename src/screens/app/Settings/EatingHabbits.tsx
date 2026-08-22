@@ -34,9 +34,11 @@ export default function EatingHabbitsSettings() {
 
   return (
     <View style={{ paddingBottom: 100 }}>
+      {/* Eating style / meals / kcal — temporarily removed
       <FormSelectGrid control={control} name="eatingHabits" label="Your eating style" options={eatingOptions} />
       <FormDropdown control={control} name="mealsPerDay" label="Meals per day" options={mealOptions} parseAsNumber />
       <FormInput control={control} name="dailyKcalIntake" label="Daily kcal (optional)" type="number" />
+      */}
       <CustomButton title="Save" backgroundColor="#000" textColor="#FFF" onPress={onSubmit} />
     </View>
   );

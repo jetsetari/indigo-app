@@ -59,7 +59,12 @@ export async function createAndLoginClient(form: any) {
 
   let user = null, session = null;
   const signUp = await supabase.auth.signUp({ email, password });
-  if (signUp.error) {
+  const accountAlreadyExists =
+    !signUp.error &&
+    Array.isArray(signUp.data.user?.identities) &&
+    signUp.data.user.identities.length === 0;
+
+  if (signUp.error || accountAlreadyExists) {
     const signInRes = await supabase.auth.signInWithPassword({ email, password });
     if (signInRes.error) throw signInRes.error;
     user = signInRes.data.user;
@@ -69,8 +74,12 @@ export async function createAndLoginClient(form: any) {
     session = signUp.data.session;
   }
 
+  if (!user || !session) {
+    throw new Error('Please confirm your email, then sign in to continue.');
+  }
+
   const row = prepareClientRow(form);
-  if (user?.id) row.user_id = user.id;
+  // clients has no user_id column — match by email only
 
   const { data: existing, error: selErr } = await supabase
     .from('clients').select('id').eq('email', email).maybeSingle();
@@ -111,7 +120,8 @@ export async function resetPassword(email: string) {
 }
 
 
-export const INTAKE_KEYS = ['metrics','goals','level','eatinghabbits','supplements'] as const;
+// EatingHabits + Supplements temporarily removed from onboarding
+export const INTAKE_KEYS = ['metrics','goals','level'] as const;
 export type IntakeKey = typeof INTAKE_KEYS[number];
 
 // explicit map → your screen component/route names
@@ -119,8 +129,8 @@ const ROUTE_MAP: Record<IntakeKey, string> = {
   metrics: 'Metrics',
   goals: 'Goals',
   level: 'Level',
-  eatinghabbits: 'EatingHabits', // note spelling vs DB key
-  supplements: 'Supplements',
+  // eatinghabbits: 'EatingHabits', // note spelling vs DB key
+  // supplements: 'Supplements',
 };
 
 export function nextIntakeRoute(done: string[] = []): string {
