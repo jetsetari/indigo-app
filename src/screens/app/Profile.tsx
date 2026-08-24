@@ -1,5 +1,5 @@
 import { View, Text, Alert, ActivityIndicator } from 'react-native';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import StickyHeader from '~/components/Layout/StickyHeader';
 import __base from '~/assets/styles/base';
 import BottomTabs from '~/components/Layout/BottomTabs';
@@ -9,6 +9,7 @@ import { useUserStore } from '~/data/store/userStore';
 import HeaderWithExtra from '~/components/Layout/HeaderWithExtra';
 import { useNavigation } from '@react-navigation/native';
 import { logout, deleteAccount } from '~/data/supabase/authHandler';
+import { fetchClientByEmail, fetchClientById } from '~/data/supabase/clientsHandler';
 import HeaderClose from '~/components/Layout/HeaderClose';
 
 import ProfileSettings from './Settings/Profile';
@@ -18,10 +19,34 @@ import Level from './Settings/Level';
 
 import dayjs from 'dayjs';
 
+function membershipDays(iso?: string | null) {
+  if (!iso) return null;
+  const start = dayjs(iso);
+  if (!start.isValid()) return null;
+  return Math.max(1, dayjs().startOf('day').diff(start.startOf('day'), 'day'));
+}
+
 export default function Profile() {
   const client = useUserStore(s => s.client);
+  const user = useUserStore(s => s.user);
   const displayName = (client?.firstName+' '+client?.lastName) || '';
   const avatarUrl = client?.avatarUrl ?? undefined;
+  const memberDays = membershipDays(client?.createdAt ?? user?.created_at);
+  const backfilled = useRef(false);
+
+  useEffect(() => {
+    if (backfilled.current || client?.createdAt) return;
+    const email = client?.email ?? user?.email;
+    const id = client?.id;
+    if (!email && !id) return;
+    backfilled.current = true;
+    const load = email ? fetchClientByEmail(email) : fetchClientById(String(id));
+    load.then((fresh) => {
+      if (!fresh?.createdAt) return;
+      const current = useUserStore.getState().client;
+      useUserStore.getState().setClient(current ? { ...current, ...fresh } : fresh);
+    }).catch(() => {});
+  }, [client?.createdAt, client?.email, client?.id, user?.email]);
   const navigation = useNavigation<any>();
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState<string>('Settings');
@@ -87,7 +112,7 @@ export default function Profile() {
   return (
     <>
       <StickyHeader title="Home" noSticky={true}>
-        <HeaderWithExtra title={`${displayName}`} subtitle={`Member since ${dayjs(client?.createdAt).format('DD-MM hh:mm:ss')}`} image={avatarUrl} />
+        <HeaderWithExtra title={`${displayName}`} subtitle={memberDays != null ? `Member for ${memberDays} ${memberDays === 1 ? 'day' : 'days'}` : ''} image={avatarUrl} />
 
         {/* General Settings */}
         <View style={styles.section}>

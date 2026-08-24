@@ -164,7 +164,8 @@ export async function signInAndGetNext(email: string, password: string) {
     id, email, first_name, last_name,
     avatar_url,
     done_screens,
-    metric_system, desired_weight
+    metric_system, desired_weight,
+    created_at
   `)
   .eq('email', userEmail)
   .maybeSingle();
