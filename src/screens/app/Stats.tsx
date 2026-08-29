@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Image, FlatList } from 'react-native';
 import { useUserStore } from '~/data/store/userStore';
 import { getWeekMeasurementRows } from '~/data/supabase/clientsHandler';
+import { formatWeight } from '~/data/helpers/units';
 
 import { useNavigation } from '@react-navigation/native';
 import { TouchableOpacity, View, Text } from 'react-native';
@@ -27,6 +28,7 @@ export default function Stats() {
   const [weekStart, setWeekStart] = useState(dayjs().startOf('week').add(1, 'day').format('YYYY-MM-DD'));
   const [selectedDate, setSelectedDate] = useState(todayISO);
   const clientId = useUserStore((s)=>s.client?.id);
+  const metricSystem = useUserStore((s)=>s.client?.metricSystem);
   const [weekRows, setWeekRows] = useState<Record<string, any>>({});
 
   const [open, setOpen] = useState(false);
@@ -104,7 +106,7 @@ export default function Stats() {
                       </Text>
                       {(r?.weight || r?.bodyfat) ? (
                         <Text style={{ color:'#bbb', marginTop:2 }}>
-                          {r?.weight ? `${r.weight}kg` : ''}{r?.weight && r?.bodyfat ? ' · ' : ''}{r?.bodyfat ? `${r.bodyfat}%` : ''}
+                          {r?.weight ? formatWeight(r.weight, metricSystem) : ''}{r?.weight && r?.bodyfat ? ' · ' : ''}{r?.bodyfat ? `${r.bodyfat}%` : ''}
                         </Text>
                       ) : null}
                     </View>

@@ -6,6 +6,7 @@ import CustomButton from '~/components/Buttons/CustomButton';
 import { toastError, toastSuccess } from '~/data/helpers/toast';
 import { addClientMeasurementDate } from '~/data/supabase/clientsHandler';
 import { useUserStore } from '~/data/store/userStore';
+import { toDisplayWeight, toStoredWeight, weightUnit } from '~/data/helpers/units';
 import __base from '~/assets/styles/base';
 import { getMeasurementByDate } from '~/data/supabase/clientsHandler';
 import Loading from '~/components/Loading';
@@ -23,6 +24,7 @@ const API_BASE = 'https://indigo-backend-j5pl.onrender.com';
 
 export default function MeasurementsInline({ dateISO }: Props) {
   const clientId = useUserStore((s) => s.client?.id);
+  const metricSystem = useUserStore((s) => s.client?.metricSystem);
   const { control, handleSubmit, setValue, getValues } = useForm<Values>({
     defaultValues: { weight: '', bodyfat: '', pictureFront: null, pictureSide: null, pictureBack: null },
   });
@@ -73,14 +75,14 @@ export default function MeasurementsInline({ dateISO }: Props) {
         return;
       }
       // prefill form with existing data (even if some fields are null)
-      setValue('weight', row.weight ?? '' as any);
+      setValue('weight', (toDisplayWeight(row.weight, metricSystem) ?? '') as any);
       setValue('bodyfat', row.bodyfat ?? '' as any);
       setValue('pictureFront', row.picture_front ?? null as any);
       setValue('pictureSide',  row.picture_side  ?? null as any);
       setValue('pictureBack',  row.picture_back  ?? null as any);
       setType((row.measurement_type as 'ai'|'manual') ?? 'manual');
     })();
-  }, [clientId, dateISO, setValue]);
+  }, [clientId, dateISO, metricSystem, setValue]);
 
   const onSave = handleSubmit(async (vals) => {
     try {
@@ -89,7 +91,7 @@ export default function MeasurementsInline({ dateISO }: Props) {
         clientId,
         dateISO,
         measurementType: type,
-        weight: vals.weight === '' || vals.weight == null ? null : Number(vals.weight),
+        weight: vals.weight === '' || vals.weight == null ? null : toStoredWeight(vals.weight, metricSystem),
         bodyfat: vals.bodyfat === '' || vals.bodyfat == null ? null : Number(vals.bodyfat),
         pictureFront: vals.pictureFront ?? null,
         pictureSide: vals.pictureSide ?? null,
@@ -119,7 +121,7 @@ export default function MeasurementsInline({ dateISO }: Props) {
 
       <View style={[__base.rowGap, { flex: 1 }]}>
         <View style={{ flex: 1, minWidth: 0, paddingRight: 10 }}>
-          <FormInput control={control} name="weight"  label="Weight"   placeholder="kg" type="number" />
+          <FormInput control={control} name="weight"  label="Weight"   placeholder={weightUnit(metricSystem)} type="number" />
         </View>
         <View style={{ flex: 1, minWidth: 0 }}>
           <FormInput control={control} name="bodyfat" label="Bodyfat"  placeholder="%"  type="number" />

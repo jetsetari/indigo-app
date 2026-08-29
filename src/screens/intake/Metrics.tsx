@@ -12,7 +12,8 @@ import { useRoute } from '@react-navigation/native';
 import { registerDefault as _ignore } from '~/data/forms/defaultValues'; 
 import { metricsDefault } from '~/data/forms/defaultValues';
 import { validateMetrics } from '~/data/forms/validationRules';
-import { getHeightOptions, getWeightPickerConfig } from '~/data/helpers/metrics';
+import { convertMetricsFields, getHeightOptions, getWeightPickerConfig } from '~/data/helpers/metrics';
+import { parseUnitSystem, toStoredHeight, toStoredWeight, weightUnit } from '~/data/helpers/units';
 import { addClientMeasurement, updateClient, appendDoneScreen } from '~/data/supabase/clientsHandler';
 
 import { toastError, toastSuccess } from '~/data/helpers/toast';
@@ -43,21 +44,34 @@ export default function Metrics() {
   });
 
   const metricSystem = watch('metricSystem');
-  const heightOptions = useMemo(() => getHeightOptions(metricSystem ?? 'metric'), [metricSystem]);
-  const { min, max, unit } = getWeightPickerConfig(metricSystem ?? 'metric', t);
+  const unitSystem = parseUnitSystem(metricSystem);
+  const heightOptions = useMemo(() => getHeightOptions(unitSystem), [unitSystem]);
+  const { min, max, unit } = getWeightPickerConfig(unitSystem, t);
+
+  const applyUnitConversion = (next: string, previous?: string) => {
+    const converted = convertMetricsFields(
+      previous,
+      next,
+      getValues(),
+      getWeightPickerConfig(parseUnitSystem(next), t),
+    );
+    if (converted.weight != null) setValue('weight', converted.weight);
+    if (converted.desiredWeight != null) setValue('desiredWeight', converted.desiredWeight);
+    if (converted.height != null) setValue('height', converted.height);
+  };
   
   const onSubmit = handleSubmit(async (values) => {
     try {
       await updateClient({
-        metricSystem: values.metricSystem,                     // 'metric' | 'imperial'
-        height: values.height,                                 // number
-        desiredWeight: values.desiredWeight ? Number(values.desiredWeight) : null,
+        metricSystem: values.metricSystem,
+        height: toStoredHeight(values.height, values.metricSystem),
+        desiredWeight: values.desiredWeight ? toStoredWeight(values.desiredWeight, values.metricSystem) : null,
       });
       const clientId = useUserStore.getState().client?.id;
       if (!clientId) throw new Error('Missing client id');
       await addClientMeasurement({
         clientId,
-        weight: typeof values.weight === 'number' ? values.weight : Number(values.weight),
+        weight: toStoredWeight(values.weight, values.metricSystem),
         bodyfat: values.bodyfat ? Number(values.bodyfat) : null,
         pictureFront: values.pictureFront ?? null,
         pictureSide:  values.pictureSide  ?? null,
@@ -126,9 +140,9 @@ export default function Metrics() {
         subtitle={t.header.subtitle}
         image={avatarUrl}
       />
-      <FormToggle control={control} name="metricSystem" options={[{ label: t.system.imperial, value: 'imperial' },{ label: t.system.metric, value: 'metric' }]} rules={validateMetrics.metricSystem} />
+      <FormToggle control={control} name="metricSystem" options={[{ label: t.system.imperial, value: 'imperial' },{ label: t.system.metric, value: 'metric' }]} rules={validateMetrics.metricSystem} onValueChange={applyUnitConversion} />
       <FormHorizontalPicker control={control} name="weight" label={t.weight.label} unit={unit} min={min} max={max} />
-      <FormInput control={control} name="desiredWeight" label={t.weightGoal.label} placeholder="" type="number" required rules={validateMetrics.desiredWeight} />
+      <FormInput control={control} name="desiredWeight" label={`${t.weightGoal.label} (${weightUnit(unitSystem)})`} placeholder="" type="number" required rules={validateMetrics.desiredWeight} />
       <FormDropdown control={control} name="height" label={t.height.label} required options={heightOptions} parseAsNumber rules={validateMetrics.height} />
       <Text style={[__base.textBold, { marginBottom: 6 }]}>{t.photos.label ?? 'Progress photos'}</Text>
       <Text style={[__base.text, { color: '#AAA', marginBottom: 10, fontSize: 13 }]}>

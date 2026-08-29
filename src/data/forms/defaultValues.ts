@@ -15,7 +15,7 @@ export const registerDefault = {
 };
 
 export const metricsDefault = {
-  metricSystem: 'imperial' as 'imperial' | 'imperial',
+  metricSystem: 'imperial' as 'metric' | 'imperial',
   weight: 120,
   desiredWeight: '',     // string input, we’ll coerce to number on save
   height: null,
