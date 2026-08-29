@@ -1,8 +1,7 @@
-// src/data/helpers/metrics.ts
-type UnitSystem = 'metric' | 'imperial';
-import useTranslation from '~/data/helpers/translation';
+import { convertHeight, convertWeight, parseUnitSystem, roundWeight, type UnitSystem } from '~/data/helpers/units';
 
-const t = useTranslation();
+export type { UnitSystem };
+
 // Height options for dropdown:
 // - metric: centimeters
 // - imperial: inches (simple and unambiguous for a dropdown)
@@ -21,10 +20,56 @@ export function getHeightOptions(system: UnitSystem) {
   });
 }
 
+export function snapHeightToOptions(value: number, system: UnitSystem): number {
+  const options = getHeightOptions(system);
+  return options.reduce((best, option) => {
+    const candidate = Number(option.value);
+    return Math.abs(candidate - value) < Math.abs(best - value) ? candidate : best;
+  }, Number(options[0].value));
+}
+
 // Weight picker config
-export function getWeightPickerConfig(system: UnitSystem, t: any) {
+export function getWeightPickerConfig(system: UnitSystem, t?: any) {
   if (system === 'imperial') {
-    return { min: 80, max: 400, unit: 'lbs' }; // lbs
+    return { min: 80, max: 400, unit: t?.weight?.unitLbs ?? 'lbs' };
   }
-  return { min: 35, max: 200, unit: 'kg' };   // kg
+  return { min: 35, max: 200, unit: t?.weight?.unitKg ?? 'kg' };
+}
+
+export function convertMetricsFields(
+  from: UnitSystem | string | null | undefined,
+  to: UnitSystem | string | null | undefined,
+  values: { weight?: unknown; desiredWeight?: unknown; height?: unknown },
+  weightRange?: { min: number; max: number },
+) {
+  const fromSystem = parseUnitSystem(from);
+  const toSystem = parseUnitSystem(to);
+  const next: { weight?: number; desiredWeight?: string; height?: number } = {};
+
+  if (fromSystem === toSystem) return next;
+
+  if (values.weight != null && values.weight !== '') {
+    const n = Number(values.weight);
+    if (Number.isFinite(n)) {
+      let weight = Math.round(convertWeight(n, fromSystem, toSystem));
+      if (weightRange) weight = Math.min(weightRange.max, Math.max(weightRange.min, weight));
+      next.weight = weight;
+    }
+  }
+
+  if (values.desiredWeight != null && values.desiredWeight !== '') {
+    const n = Number(values.desiredWeight);
+    if (Number.isFinite(n)) {
+      next.desiredWeight = String(roundWeight(convertWeight(n, fromSystem, toSystem), toSystem));
+    }
+  }
+
+  if (values.height != null && values.height !== '') {
+    const n = Number(values.height);
+    if (Number.isFinite(n)) {
+      next.height = snapHeightToOptions(convertHeight(n, fromSystem, toSystem), toSystem);
+    }
+  }
+
+  return next;
 }
