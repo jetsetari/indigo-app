@@ -1,5 +1,5 @@
 import { supabase } from '../supabase/connection';
-import { camelToSnake, snakeToCamel } from '../helpers';
+import { camelToSnake, snakeToCamel, toDateOnly } from '../helpers';
 import { useUserStore } from '../store/userStore';
 import { MeasurementRow } from '../types';
 import { IntakeKey } from './authHandler';
@@ -16,10 +16,9 @@ export function prepareClientRow(input: any) {
     (rest as any).avatarUrl = avatarUrl;         // ensure one source
   }
 
-  if (rest?.dob instanceof Date) {
-    rest.dob = rest.dob.toISOString().slice(0, 10);
-  } else if (typeof rest?.dob === 'string' && /^\d{4}-\d{2}-\d{2}/.test(rest.dob)) {
-    rest.dob = rest.dob.slice(0, 10);
+  const dob = toDateOnly(rest?.dob);
+  if (dob !== null || rest?.dob != null) {
+    rest.dob = dob;
   }
   const row = camelToSnake(rest);
   if ('avatar_url' in row || 'avatarUrl' in (input ?? {})) {
@@ -143,7 +142,7 @@ export async function saveClient(data: any) {
 
 export async function updateClient(patch: any) {
   const store = useUserStore.getState();
-  const { id, email } = await resolveClientIdentity(patch);
+  const { id } = await resolveClientIdentity(patch);
 
   // Build row from your existing mapper
   const built = prepareClientRow(patch);
@@ -167,9 +166,7 @@ export async function updateClient(patch: any) {
   const { error } = await supabase.from('clients').update(row).eq('id', id);
   if (error) throw error;
 
-  const client = email
-    ? await fetchClientByEmail(email)
-    : await fetchClientById(id);
+  const client = await fetchClientById(id);
   store.setClient?.(client);
   return client;
 }
@@ -299,6 +296,36 @@ export async function getMeasurementByDate(clientId: number, isoDate: string) {
   return data?.[0] ?? null;
 }
 
+export async function getLatestMeasurement(clientId: number) {
+  const [weightRes, bodyfatRes] = await Promise.all([
+    supabase
+      .from('client_measurements')
+      .select('weight')
+      .eq('client_id', clientId)
+      .not('weight', 'is', null)
+      .order('date', { ascending: false })
+      .order('id', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    supabase
+      .from('client_measurements')
+      .select('bodyfat')
+      .eq('client_id', clientId)
+      .not('bodyfat', 'is', null)
+      .order('date', { ascending: false })
+      .order('id', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  ]);
+
+  if (weightRes.error) throw weightRes.error;
+  if (bodyfatRes.error) throw bodyfatRes.error;
+
+  const weight = weightRes.data?.weight ?? null;
+  const bodyfat = bodyfatRes.data?.bodyfat ?? null;
+  if (weight == null && bodyfat == null) return null;
+  return { weight, bodyfat };
+}
 
 export type WeekRow = {
   date: string; weight: number|null; bodyfat: number|null;
@@ -319,6 +346,20 @@ export async function getWeekMeasurementRows(clientId: number, weekStartISO: str
 
   if (error) return [];
   return (data ?? []) as WeekRow[];
+}
+
+export async function getRecentMeasurements(clientId: number, limit = 10): Promise<WeekRow[]> {
+  const { data, error } = await supabase
+    .from('client_measurements')
+    .select('date, weight, bodyfat, picture_front, picture_side, picture_back')
+    .eq('client_id', clientId)
+    .order('date', { ascending: false })
+    .order('id', { ascending: false })
+    .limit(limit);
+  if (error) return [];
+  return ((data ?? []) as WeekRow[]).filter(
+    (r) => r.weight != null || r.bodyfat != null || r.picture_front || r.picture_side || r.picture_back
+  );
 }
 
 export type DayDatum = { date: string; weight: number | null };

@@ -35,6 +35,7 @@ export default function FormDropdown<T extends FieldValues = FieldValues>({
 }: FormDropdownProps<T>) {
   const [focused, setFocused] = useState(false);
   const pickerRef = useRef<any>(null);
+  const skipInitialChange = useRef(true);
 
   // normalize to string for RNPickerSelect (mirrors your current base component)
   const normalized = options.map(o => ({ label: o.label, value: String(o.value) }));
@@ -57,6 +58,12 @@ export default function FormDropdown<T extends FieldValues = FieldValues>({
           typeof value === 'number' ? String(value) : ((value as any) ?? '');
 
         const handleChange = (v: string) => {
+          // RNPickerSelect fires an empty value on mount / reset, which would wipe saved selections.
+          if (skipInitialChange.current) {
+            skipInitialChange.current = false;
+            if (v === '' || v == null) return;
+          }
+          if ((v === '' || v == null) && !touched && value) return;
           const next = parseAsNumber ? (v === '' ? (undefined as any) : Number(v)) : v;
           onChange(next as any);
         };

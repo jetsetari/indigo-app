@@ -380,6 +380,7 @@ export type SelectableWeekWorkout = {
   dayIndex: number;
   isMissed: boolean;
   coverImage?: string | null;
+  items: WorkoutItem[];
   previewExercises: string[];
 };
 
@@ -542,6 +543,7 @@ async function hydrateSelectableDays(
       dayIndex: day.day_index,
       isMissed: Boolean(day.date && day.date < todayISO),
       coverImage: (firstWithCover?.exercise as any)?.cover ?? null,
+      items: dayItems,
       previewExercises,
     });
     if (available.length >= limit) break;

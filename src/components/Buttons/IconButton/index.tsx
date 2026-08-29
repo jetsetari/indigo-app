@@ -16,14 +16,17 @@ type Props = {
 };
 
 export default function IconButton({
-  chevronColor = '#000',
-  backgroundColor = '#FFF',
+  chevronColor,
+  backgroundColor,
   route,
   icon = 'chevron-back',
   onPress,
   back,
 }: Props) {
   const navigation = useNavigation();
+  const isClose = icon === 'close';
+  const bg = backgroundColor ?? (isClose ? '#000' : '#FFF');
+  const iconColor = chevronColor ?? (isClose ? '#FFF' : '#000');
 
   const handlePress = () => {
     if (onPress) return onPress();
@@ -45,8 +48,14 @@ export default function IconButton({
 
   return (
     <TouchableOpacity onPress={handlePress} activeOpacity={0.8} style={styles.button}>
-      <View style={[styles.square, { backgroundColor }]}>
-        <Ionicons name={icon} size={20} color={chevronColor} />
+      <View
+        style={[
+          styles.square,
+          { backgroundColor: bg },
+          isClose && styles.squareClose,
+        ]}
+      >
+        <Ionicons name={icon} size={20} color={iconColor} />
       </View>
     </TouchableOpacity>
   );

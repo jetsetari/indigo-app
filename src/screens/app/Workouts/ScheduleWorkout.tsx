@@ -1,6 +1,6 @@
 // src/screens/app/Workouts/ScheduleWorkout.tsx
-import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, Image, TouchableOpacity, StyleSheet, Alert, ActivityIndicator } from 'react-native';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { View, Text, Image, StyleSheet, Alert, PanResponder, Animated, TouchableOpacity, type GestureResponderEvent, type PanResponderGestureState } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import dayjs from 'dayjs';
 import { Feather } from '@expo/vector-icons';
@@ -9,12 +9,15 @@ import StickyHeader from '~/components/Layout/StickyHeader';
 import WhiteRefreshControl from '~/components/Layout/WhiteRefreshControl';
 import IconButton from '~/components/Buttons/IconButton';
 import CustomButton from '~/components/Buttons/CustomButton';
+import AssignWorkoutSheet from '~/components/Blocks/AssignWorkoutSheet';
 import Loading from '~/components/Loading';
 import __base from '~/assets/styles/base';
+import { formatDisplayDate, formatDisplayDateLong, formatWeekRange } from '~/data/helpers/date';
 import { useUserStore } from '~/data/store/userStore';
 import {
   fetchWorkoutsByDateRange,
   fetchSelectableWeekWorkouts,
+  fetchUpcomingWorkouts,
   moveWorkoutToDate,
   skipWorkoutDay,
   updateWorkoutDayDate,
@@ -30,15 +33,33 @@ type WorkoutDayItem = {
   dateFormatted: string;
 };
 
+type RowRect = { y: number; height: number };
+
 function buildWeekDays(weekStart: string) {
   return Array.from({ length: 7 }, (_, i) => {
     const date = dayjs(weekStart).add(i, 'day');
     return {
       iso: date.format('YYYY-MM-DD'),
       dayName: date.format('dddd'),
-      dateFormatted: date.format('DD-MM-YYYY'),
+      dateFormatted: formatDisplayDate(date.format('YYYY-MM-DD')),
     };
   });
+}
+
+function hitIndex(pageY: number, rects: (RowRect | null)[]): number {
+  let best = 0;
+  let bestDist = Infinity;
+  for (let i = 0; i < rects.length; i++) {
+    const r = rects[i];
+    if (!r) continue;
+    if (pageY >= r.y && pageY <= r.y + r.height) return i;
+    const dist = Math.abs(pageY - (r.y + r.height / 2));
+    if (dist < bestDist) {
+      bestDist = dist;
+      best = i;
+    }
+  }
+  return best;
 }
 
 export default function ScheduleWorkout() {
@@ -50,13 +71,22 @@ export default function ScheduleWorkout() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [workouts, setWorkouts] = useState<WorkoutDayItem[]>([]);
-  const [missedWorkouts, setMissedWorkouts] = useState<SelectableWeekWorkout[]>([]);
-  const [busyMissedDayId, setBusyMissedDayId] = useState<number | null>(null);
-  const [selectedWorkoutIndex, setSelectedWorkoutIndex] = useState<number | null>(null);
-  const [weekStart, setWeekStart] = useState(() => {
-    // Get Monday of the week containing selectedDate
-    return dayjs(selectedDate).startOf('week').add(1, 'day').format('YYYY-MM-DD');
-  });
+  const [selectableWorkouts, setSelectableWorkouts] = useState<SelectableWeekWorkout[]>([]);
+  const [busyDayId, setBusyDayId] = useState<number | null>(null);
+  const [assignDate, setAssignDate] = useState<string | null>(null);
+  const weekStart = dayjs(selectedDate).startOf('week').add(1, 'day').format('YYYY-MM-DD');
+  const didAutoOpen = useRef(false);
+  const [draggingIndex, setDraggingIndex] = useState<number | null>(null);
+  const [hoverIndex, setHoverIndex] = useState<number | null>(null);
+  const dragTop = useRef(new Animated.Value(0)).current;
+
+  const rowRefs = useRef<(View | null)[]>([]);
+  const rowRects = useRef<(RowRect | null)[]>([]);
+  const grabOffset = useRef(0);
+  const workoutsRef = useRef(workouts);
+  workoutsRef.current = workouts;
+  const draggingRef = useRef<number | null>(null);
+  const movingRef = useRef(false);
 
   const loadWorkouts = useCallback(async (opts?: { refresh?: boolean }) => {
     if (!client?.id) return;
@@ -66,13 +96,15 @@ export default function ScheduleWorkout() {
       const days = buildWeekDays(weekStart);
       const fromDate = weekStart;
       const toDate = dayjs(weekStart).add(6, 'day').format('YYYY-MM-DD');
-      const [fetchedWorkouts, selectableWorkouts] = await Promise.all([
+      const [fetchedWorkouts, selectable, upcoming] = await Promise.all([
         fetchWorkoutsByDateRange(client.id, fromDate, toDate),
         fetchSelectableWeekWorkouts(client.id, dayjs().format('YYYY-MM-DD'), 20),
+        fetchUpcomingWorkouts(client.id, dayjs().format('YYYY-MM-DD'), 10).catch(() => []),
       ]);
-      setMissedWorkouts(selectableWorkouts.filter((workout) => workout.isMissed));
+      const byId = new Map<number, SelectableWeekWorkout>();
+      for (const workout of [...selectable, ...upcoming]) byId.set(workout.id, workout);
+      setSelectableWorkouts(Array.from(byId.values()));
 
-      // Create a map of workouts by date
       const workoutsByDate = new Map<string, WorkoutDayItem>();
       fetchedWorkouts.forEach((w) => {
         workoutsByDate.set(w.date, {
@@ -81,19 +113,15 @@ export default function ScheduleWorkout() {
           title: w.title,
           coverImage: w.coverImage ?? null,
           dayName: dayjs(w.date).format('dddd'),
-          dateFormatted: dayjs(w.date).format('DD-MM-YYYY'),
+          dateFormatted: formatDisplayDate(w.date),
         });
       });
 
-      // Create array with all 7 days, filling in workouts where they exist
       const weekWorkouts: WorkoutDayItem[] = days.map((day) => {
         const existing = workoutsByDate.get(day.iso);
-        if (existing) {
-          return existing;
-        }
-        // Return placeholder for days without workouts
+        if (existing) return existing;
         return {
-          id: 0, // 0 means no workout
+          id: 0,
           date: day.iso,
           title: null,
           coverImage: null,
@@ -103,7 +131,6 @@ export default function ScheduleWorkout() {
       });
 
       setWorkouts(weekWorkouts);
-      setSelectedWorkoutIndex(null);
     } catch (error) {
       console.error('Error loading workouts:', error);
     } finally {
@@ -117,40 +144,56 @@ export default function ScheduleWorkout() {
     loadWorkouts();
   }, [client?.id, weekStart, loadWorkouts]);
 
+  useEffect(() => {
+    if (loading || didAutoOpen.current || !workouts.length) return;
+    const day = workouts.find((item) => item.date === selectedDate);
+    if (day && day.id === 0) {
+      didAutoOpen.current = true;
+      setAssignDate(selectedDate);
+    }
+  }, [loading, workouts, selectedDate]);
+
   const onRefresh = useCallback(() => {
     loadWorkouts({ refresh: true });
   }, [loadWorkouts]);
 
-  const handleSelectMissedWorkout = (workout: SelectableWeekWorkout) => {
-    if (!client?.id || busyMissedDayId) return;
+  const measureRows = () => {
+    rowRefs.current.forEach((ref, i) => {
+      ref?.measureInWindow((_x, y, _w, h) => {
+        rowRects.current[i] = { y, height: h };
+      });
+    });
+  };
+
+  const handleSelectWorkout = (workout: SelectableWeekWorkout) => {
+    if (!client?.id || !assignDate || busyDayId) return;
     const title = workout.title?.trim() || `Day ${workout.dayIndex}`;
-    const targetWorkout = workouts.find(
-      (item) => item.id > 0 && item.date === selectedDate
-    );
+    const targetWorkout = workouts.find((item) => item.id > 0 && item.date === assignDate);
 
     Alert.alert(
-      'Select missed workout?',
-      `Move "${title}" to ${dayjs(selectedDate).format('dddd, D MMMM')}?`,
+      'Add this workout?',
+      `Move "${title}" to ${formatDisplayDateLong(assignDate)}?`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Select',
           onPress: async () => {
-            setBusyMissedDayId(workout.id);
+            setBusyDayId(workout.id);
             try {
               await moveWorkoutToDate(
                 client.id,
                 workout.id,
                 workout.date,
-                selectedDate,
+                assignDate,
                 targetWorkout?.id
               );
+              setAssignDate(null);
               await loadWorkouts();
             } catch (error) {
-              console.error('Error selecting missed workout:', error);
-              Alert.alert('Could not select workout', 'Please try again.');
+              console.error('Error selecting workout:', error);
+              Alert.alert('Could not add workout', 'Please try again.');
             } finally {
-              setBusyMissedDayId(null);
+              setBusyDayId(null);
             }
           },
         },
@@ -159,7 +202,7 @@ export default function ScheduleWorkout() {
   };
 
   const handleSkipMissedWorkout = (workout: SelectableWeekWorkout) => {
-    if (busyMissedDayId) return;
+    if (busyDayId) return;
     const title = workout.title?.trim() || `Day ${workout.dayIndex}`;
 
     Alert.alert(
@@ -171,15 +214,15 @@ export default function ScheduleWorkout() {
           text: 'Skip',
           style: 'destructive',
           onPress: async () => {
-            setBusyMissedDayId(workout.id);
+            setBusyDayId(workout.id);
             try {
               await skipWorkoutDay(workout.id);
               await loadWorkouts();
             } catch (error) {
-              console.error('Error skipping missed workout:', error);
+              console.error('Error skipping workout:', error);
               Alert.alert('Could not skip workout', 'Please try again.');
             } finally {
-              setBusyMissedDayId(null);
+              setBusyDayId(null);
             }
           },
         },
@@ -187,145 +230,165 @@ export default function ScheduleWorkout() {
     );
   };
 
-  const handleMoveWorkout = async (fromIndex: number, toIndex: number) => {
-    if (fromIndex === toIndex) {
-      setSelectedWorkoutIndex(null);
-      return;
-    }
+  const handleMoveWorkout = useCallback(async (fromIndex: number, toIndex: number) => {
+    if (fromIndex === toIndex || movingRef.current) return;
+    const current = workoutsRef.current;
+    const fromItem = current[fromIndex];
+    const toItem = current[toIndex];
+    if (!fromItem || fromItem.id <= 0) return;
 
-    const newWorkouts = [...workouts];
     const targetDates = Array.from({ length: 7 }, (_, i) =>
       dayjs(weekStart).add(i, 'day').format('YYYY-MM-DD')
     );
-
-    const fromItem = newWorkouts[fromIndex];
-    const toItem = newWorkouts[toIndex];
     const targetDate = targetDates[toIndex];
+    const fromTargetDate = targetDates[fromIndex];
+    const next = [...current];
 
-    // If moving a workout to a slot that has a workout, swap them
-    if (fromItem.id > 0 && toItem.id > 0) {
-      // Swap: move fromItem to toIndex, move toItem to fromIndex
-      const fromTargetDate = targetDates[fromIndex];
-
-      // Update both workouts
-      try {
+    movingRef.current = true;
+    try {
+      if (toItem.id > 0) {
         await Promise.all([
           updateWorkoutDayDate(fromItem.id, targetDate),
           updateWorkoutDayDate(toItem.id, fromTargetDate),
         ]);
-
-        // Swap in local state
-        [newWorkouts[fromIndex], newWorkouts[toIndex]] = [newWorkouts[toIndex], newWorkouts[fromIndex]];
-        newWorkouts[fromIndex].date = fromTargetDate;
-        newWorkouts[fromIndex].dateFormatted = dayjs(fromTargetDate).format('DD-MM-YYYY');
-        newWorkouts[fromIndex].dayName = dayjs(fromTargetDate).format('dddd');
-        newWorkouts[toIndex].date = targetDate;
-        newWorkouts[toIndex].dateFormatted = dayjs(targetDate).format('DD-MM-YYYY');
-        newWorkouts[toIndex].dayName = dayjs(targetDate).format('dddd');
-
-        setWorkouts(newWorkouts);
-      } catch (error) {
-        console.error('Error swapping workouts:', error);
-        loadWorkouts();
-      }
-    } else if (fromItem.id > 0) {
-      // Moving workout to empty slot
-      try {
+        next[fromIndex] = {
+          ...toItem,
+          date: fromTargetDate,
+          dateFormatted: formatDisplayDate(fromTargetDate),
+          dayName: dayjs(fromTargetDate).format('dddd'),
+        };
+        next[toIndex] = {
+          ...fromItem,
+          date: targetDate,
+          dateFormatted: formatDisplayDate(targetDate),
+          dayName: dayjs(targetDate).format('dddd'),
+        };
+      } else {
         await updateWorkoutDayDate(fromItem.id, targetDate);
-
-        // Move in local state
-        newWorkouts[toIndex] = { ...fromItem, date: targetDate, dateFormatted: dayjs(targetDate).format('DD-MM-YYYY'), dayName: dayjs(targetDate).format('dddd') };
-        newWorkouts[fromIndex] = {
+        next[toIndex] = {
+          ...fromItem,
+          date: targetDate,
+          dateFormatted: formatDisplayDate(targetDate),
+          dayName: dayjs(targetDate).format('dddd'),
+        };
+        next[fromIndex] = {
           id: 0,
-          date: targetDates[fromIndex],
+          date: fromTargetDate,
           title: null,
           coverImage: null,
-          dayName: dayjs(targetDates[fromIndex]).format('dddd'),
-          dateFormatted: dayjs(targetDates[fromIndex]).format('DD-MM-YYYY'),
+          dayName: dayjs(fromTargetDate).format('dddd'),
+          dateFormatted: formatDisplayDate(fromTargetDate),
         };
-
-        setWorkouts(newWorkouts);
-      } catch (error) {
-        console.error('Error moving workout:', error);
-        loadWorkouts();
       }
+      setWorkouts(next);
+    } catch (error) {
+      console.error('Error moving workout:', error);
+      loadWorkouts();
+    } finally {
+      movingRef.current = false;
     }
+  }, [weekStart, loadWorkouts]);
 
-    setSelectedWorkoutIndex(null);
+  const startDrag = (index: number, g: PanResponderGestureState) => {
+    measureRows();
+    const rect = rowRects.current[index];
+    grabOffset.current = rect ? g.y0 - rect.y : 40;
+    draggingRef.current = index;
+    setDraggingIndex(index);
+    setHoverIndex(index);
+    dragTop.setValue(g.y0 - grabOffset.current);
   };
 
-  const renderDayCard = (item: WorkoutDayItem, index: number) => {
+  const updateDrag = (g: PanResponderGestureState) => {
+    dragTop.setValue(g.moveY - grabOffset.current);
+    setHoverIndex(hitIndex(g.moveY, rowRects.current));
+  };
+
+  const endDrag = async (g: PanResponderGestureState) => {
+    const from = draggingRef.current;
+    const to = hitIndex(g.moveY, rowRects.current);
+    draggingRef.current = null;
+    setDraggingIndex(null);
+    setHoverIndex(null);
+    if (from == null || from === to) return;
+    await handleMoveWorkout(from, to);
+  };
+
+  const startDragRef = useRef(startDrag);
+  const updateDragRef = useRef(updateDrag);
+  const endDragRef = useRef(endDrag);
+  startDragRef.current = startDrag;
+  updateDragRef.current = updateDrag;
+  endDragRef.current = endDrag;
+
+  const panHandlers = useRef(
+    Array.from({ length: 7 }, (_, index) =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => true,
+        onMoveShouldSetPanResponder: () => true,
+        onPanResponderTerminationRequest: () => false,
+        onPanResponderGrant: (_e: GestureResponderEvent, g) => startDragRef.current(index, g),
+        onPanResponderMove: (_e, g) => updateDragRef.current(g),
+        onPanResponderRelease: (_e, g) => { endDragRef.current(g); },
+        onPanResponderTerminate: (_e, g) => { endDragRef.current(g); },
+      }).panHandlers
+    )
+  ).current;
+
+  const renderDayInner = (item: WorkoutDayItem, showHandle: boolean) => {
     const hasWorkout = item.id > 0;
     const displayTitle = item.title && item.title.trim() ? item.title : item.dayName;
-    const isSelected = selectedWorkoutIndex === index;
-
-    const handlePress = () => {
-      if (selectedWorkoutIndex === null) {
-        // Select this workout if it has one
-        if (hasWorkout) {
-          setSelectedWorkoutIndex(index);
-        }
-      } else if (selectedWorkoutIndex === index) {
-        // Deselect
-        setSelectedWorkoutIndex(null);
-      } else {
-        // Move selected workout to this position
-        handleMoveWorkout(selectedWorkoutIndex, index);
-      }
-    };
 
     return (
-      <TouchableOpacity
-        onPress={handlePress}
-        activeOpacity={0.7}
-        style={[
-          styles.dayCard,
-          isSelected && styles.dayCardSelected,
-          !hasWorkout && selectedWorkoutIndex !== null && styles.dayCardDropTarget,
-        ]}
-      >
-        <View style={styles.dayCardContent}>
-          {hasWorkout && item.coverImage ? (
-            <Image source={{ uri: item.coverImage }} style={styles.dayImage} />
-          ) : (
-            <View style={[styles.dayImage, styles.dayImagePlaceholder]}>
-              <View style={styles.placeholderDots} />
+      <View style={styles.dayCardContent}>
+        {hasWorkout && item.coverImage ? (
+          <Image source={{ uri: item.coverImage }} style={styles.dayImage} />
+        ) : (
+          <View style={[styles.dayImage, styles.dayImagePlaceholder]}>
+            <View style={styles.placeholderDots} />
+          </View>
+        )}
+
+        <View style={styles.dayInfo}>
+          <Text style={styles.dayName}>{item.dayName}</Text>
+          <Text style={[styles.dayTitle, !hasWorkout && styles.addLabel]}>
+            {hasWorkout ? displayTitle : 'No Workout'}
+          </Text>
+        </View>
+
+        <View style={styles.dayMeta}>
+          <Text style={styles.dayDate}>{item.dateFormatted}</Text>
+          {showHandle && hasWorkout && (
+            <View style={styles.dragHandle}>
+              <Feather name="menu" size={20} color="#FFF" />
             </View>
           )}
-
-          <View style={styles.dayInfo}>
-            <Text style={styles.dayName}>{item.dayName}</Text>
-            <Text style={[styles.dayTitle, !hasWorkout && styles.dayTitleEmpty]}>
-              {hasWorkout ? displayTitle : 'No Workout'}
-            </Text>
-          </View>
-
-          <View style={styles.dayMeta}>
-            <Text style={styles.dayDate}>{item.dateFormatted}</Text>
-            {hasWorkout && (
-              <View style={styles.dragHandle}>
-                <Feather name="menu" size={20} color="#FFF" />
-              </View>
-            )}
-          </View>
         </View>
-      </TouchableOpacity>
+      </View>
     );
   };
 
+  const weekLabel = formatWeekRange(weekStart);
+  const draggingItem = draggingIndex != null ? workouts[draggingIndex] : null;
+
+  const header = (
+    <View style={[__base.paddingHorizontal, styles.headerWrap]}>
+      <View style={styles.headerRow}>
+        <IconButton onPress={() => navigation.goBack()} icon="chevron-back" />
+        <View style={styles.headerCopy}>
+          <Text style={styles.headerTitle}>Schedule workout</Text>
+          <Text style={styles.headerSubtitle}>{weekLabel}</Text>
+        </View>
+      </View>
+    </View>
+  );
+
   if (loading) {
     return (
-      <>
-        <StickyHeader title="Schedule workout" noSticky>
-          <View style={[__base.paddingHorizontal, { paddingTop: 70, paddingBottom: 20 }]}>
-            <View style={styles.headerRow}>
-              <IconButton onPress={() => navigation.goBack()} icon="chevron-back" />
-              <Text style={styles.headerTitle}>Schedule workout</Text>
-            </View>
-          </View>
-          <Loading />
-        </StickyHeader>
-      </>
+      <StickyHeader title="Schedule workout" noSticky padded={false}>
+        {header}
+        <Loading />
+      </StickyHeader>
     );
   }
 
@@ -334,6 +397,8 @@ export default function ScheduleWorkout() {
       <StickyHeader
         title="Schedule workout"
         noSticky
+        padded={false}
+        scrollEnabled={draggingIndex == null}
         refreshing={refreshing}
         refreshControl={
           <WhiteRefreshControl
@@ -342,107 +407,145 @@ export default function ScheduleWorkout() {
           />
         }
       >
-        <View style={[__base.paddingHorizontal, { paddingTop: 70, paddingBottom: 20 }]}>
-          <View style={styles.headerRow}>
-            <IconButton onPress={() => navigation.goBack()} icon="chevron-back" />
-            <Text style={styles.headerTitle}>Schedule workout</Text>
-          </View>
-        </View>
+        {header}
 
         <View style={[__base.paddingHorizontal, { paddingBottom: 100 }]}>
-          {missedWorkouts.length > 0 && (
-            <View style={styles.missedSection}>
-              <Text style={styles.missedHeading}>Missed workouts</Text>
-              <Text style={styles.missedDescription}>
-                Select one to schedule it for this day, or skip it permanently.
-              </Text>
-              {missedWorkouts.map((workout) => {
-                const isBusy = busyMissedDayId === workout.id;
-                return (
-                  <View key={workout.id} style={styles.missedCard}>
-                    <View style={styles.missedCardHeader}>
+          <View style={styles.weekSection}>
+            <Text style={styles.sectionHeading}>This week</Text>
+            <Text style={styles.sectionHint}>
+              Drag a workout to another day, or add one to an empty day.
+            </Text>
+            <View style={styles.workoutsContainer}>
+              {workouts.map((item, index) => {
+                const hasWorkout = item.id > 0;
+                const isSource = draggingIndex === index;
+                const isTarget = hoverIndex === index && draggingIndex != null && draggingIndex !== index;
+
+                const card = (
+                  <View
+                    ref={(node) => { rowRefs.current[index] = node; }}
+                    collapsable={false}
+                    onLayout={measureRows}
+                    style={[
+                      styles.dayCard,
+                      !hasWorkout && styles.dayCardEmpty,
+                      isSource && styles.dayCardDragging,
+                      isTarget && styles.dayCardDropTarget,
+                    ]}
+                  >
+                    <View style={styles.dayCardContent}>
+                      {hasWorkout && item.coverImage ? (
+                        <Image source={{ uri: item.coverImage }} style={styles.dayImage} />
+                      ) : (
+                        <View style={[styles.dayImage, styles.dayImagePlaceholder]}>
+                          {hasWorkout ? <View style={styles.placeholderDots} /> : <Feather name="plus" size={18} color="#FFF" />}
+                        </View>
+                      )}
+
                       <View style={styles.dayInfo}>
-                        <Text style={styles.missedDate}>
-                          Missed · {dayjs(workout.date).format('dddd, D MMMM')}
-                        </Text>
-                        <Text style={styles.dayTitle}>
-                          {workout.title?.trim() || `Day ${workout.dayIndex}`}
+                        <Text style={styles.dayName}>{item.dayName}</Text>
+                        <Text style={[styles.dayTitle, !hasWorkout && styles.addLabel]}>
+                          {hasWorkout ? (item.title?.trim() || item.dayName) : 'Add workout'}
                         </Text>
                       </View>
-                      {isBusy && <ActivityIndicator color="#4DD4AC" />}
-                    </View>
-                    {workout.previewExercises.length > 0 && (
-                      <Text style={styles.missedPreview} numberOfLines={2}>
-                        {workout.previewExercises.join(' · ')}
-                      </Text>
-                    )}
-                    <View style={styles.missedActions}>
-                      <TouchableOpacity
-                        style={styles.skipButton}
-                        onPress={() => handleSkipMissedWorkout(workout)}
-                        disabled={busyMissedDayId !== null}
-                      >
-                        <Text style={styles.skipButtonText}>Skip</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={styles.selectButton}
-                        onPress={() => handleSelectMissedWorkout(workout)}
-                        disabled={busyMissedDayId !== null}
-                      >
-                        <Text style={styles.selectButtonText}>Select</Text>
-                      </TouchableOpacity>
+
+                      <View style={styles.dayMeta}>
+                        <Text style={styles.dayDate}>{item.dateFormatted}</Text>
+                        {hasWorkout && (
+                          <View style={styles.dragHandle} {...panHandlers[index]}>
+                            <Feather name="menu" size={20} color="#FFF" />
+                          </View>
+                        )}
+                      </View>
                     </View>
                   </View>
                 );
+
+                if (!hasWorkout) {
+                  return (
+                    <TouchableOpacity
+                      key={item.date}
+                      activeOpacity={0.8}
+                      onPress={() => setAssignDate(item.date)}
+                    >
+                      {card}
+                    </TouchableOpacity>
+                  );
+                }
+
+                return <View key={item.date}>{card}</View>;
               })}
             </View>
-          )}
-          {selectedWorkoutIndex !== null && (
-            <View style={styles.instructionBox}>
-              <Text style={styles.instructionText}>
-                Tap a day to move the workout,{"\n"} or tap the selected workout to cancel
-              </Text>
-            </View>
-          )}
-          <View style={styles.workoutsContainer}>
-            {workouts.map((item, index) => (
-              <View key={item.date}>
-                {renderDayCard(item, index)}
-              </View>
-            ))}
           </View>
 
           <CustomButton
-            title="Save"
+            title="Done"
             backgroundColor="#000"
             textColor="#FFF"
             borderColor="#FFF"
-            onPress={async () => {
-              setSelectedWorkoutIndex(null);
-              // Reload to ensure everything is saved
-              await loadWorkouts();
-              // Small delay to ensure data is persisted
-              setTimeout(() => {
-                navigation.goBack();
-              }, 100);
-            }}
+            onPress={() => navigation.goBack()}
           />
         </View>
       </StickyHeader>
+
+      <AssignWorkoutSheet
+        visible={assignDate != null}
+        targetDate={assignDate}
+        workouts={selectableWorkouts}
+        busyId={busyDayId}
+        onClose={() => setAssignDate(null)}
+        onSelect={handleSelectWorkout}
+        onSkip={handleSkipMissedWorkout}
+      />
+
+      {draggingItem && (
+        <View pointerEvents="none" style={styles.dragOverlay}>
+          <Animated.View style={[styles.dayCard, styles.dragGhost, { top: dragTop }]}>
+            {renderDayInner(draggingItem, true)}
+          </Animated.View>
+        </View>
+      )}
     </>
   );
 }
 
 const styles = StyleSheet.create({
+  headerWrap: {
+    paddingTop: 62,
+    paddingBottom: 16,
+  },
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
+    gap: 16,
+  },
+  headerCopy: {
+    flex: 1,
+    minWidth: 0,
   },
   headerTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
+    fontSize: 20,
+    fontFamily: 'Inter-SemiBold',
     color: '#FFF',
+  },
+  headerSubtitle: {
+    marginTop: 2,
+    fontSize: 14,
+    color: '#999',
+  },
+  weekSection: {
+    gap: 8,
+    marginBottom: 20,
+  },
+  sectionHeading: {
+    color: '#FFF',
+    fontSize: 16,
+    fontFamily: 'Inter-SemiBold',
+  },
+  sectionHint: {
+    color: '#999',
+    fontSize: 13,
+    marginBottom: 4,
   },
   dayCard: {
     backgroundColor: '#000',
@@ -452,91 +555,19 @@ const styles = StyleSheet.create({
     marginBottom: 5,
     overflow: 'hidden',
   },
-  dayCardSelected: {
-    borderColor: '#4DD4AC',
-    borderWidth: 2,
-    backgroundColor: '#1a1a1a',
+  dayCardDragging: {
+    opacity: 0.35,
+  },
+  dayCardEmpty: {
+    borderStyle: 'dashed',
+    borderColor: '#444',
   },
   dayCardDropTarget: {
     borderColor: '#4DD4AC',
-    borderWidth: 1,
     borderStyle: 'dashed',
   },
   workoutsContainer: {
     marginBottom: 5,
-  },
-  missedSection: {
-    marginBottom: 20,
-    gap: 8,
-  },
-  missedHeading: {
-    color: '#FFF',
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  missedDescription: {
-    color: '#999',
-    fontSize: 13,
-    marginBottom: 2,
-  },
-  missedCard: {
-    backgroundColor: '#111',
-    borderWidth: 1,
-    borderColor: '#5A4028',
-    padding: 12,
-    gap: 8,
-  },
-  missedCardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  missedDate: {
-    color: '#FFB067',
-    fontSize: 13,
-    marginBottom: 3,
-  },
-  missedPreview: {
-    color: '#AAA',
-    fontSize: 13,
-  },
-  missedActions: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: 8,
-  },
-  skipButton: {
-    borderColor: '#555',
-    borderWidth: 1,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-  },
-  skipButtonText: {
-    color: '#CCC',
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  selectButton: {
-    backgroundColor: '#4DD4AC',
-    paddingHorizontal: 18,
-    paddingVertical: 8,
-  },
-  selectButtonText: {
-    color: '#000',
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  instructionBox: {
-    backgroundColor: '#1a1a1a',
-    borderWidth: 1,
-    borderColor: '#4DD4AC',
-    borderRadius: 0,
-    padding: 12,
-    marginBottom: 16,
-  },
-  instructionText: {
-    color: '#4DD4AC',
-    fontSize: 14,
-    textAlign: 'center',
   },
   dayCardContent: {
     flexDirection: 'row',
@@ -569,7 +600,7 @@ const styles = StyleSheet.create({
   },
   dayName: {
     fontSize: 14,
-    color: '#999',
+    color: '#FFF',
     marginBottom: 4,
   },
   dayTitle: {
@@ -577,8 +608,9 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#FFF',
   },
-  dayTitleEmpty: {
-    color: '#666',
+  addLabel: {
+    color: '#888',
+    fontWeight: '600',
   },
   dayMeta: {
     alignItems: 'flex-end',
@@ -589,6 +621,22 @@ const styles = StyleSheet.create({
     color: '#999',
   },
   dragHandle: {
-    padding: 4,
+    padding: 8,
+    margin: -4,
+  },
+  dragOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 80,
+  },
+  dragGhost: {
+    position: 'absolute',
+    left: 10,
+    right: 10,
+    borderColor: '#4DD4AC',
+    shadowColor: '#000',
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 8,
   },
 });

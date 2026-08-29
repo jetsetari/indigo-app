@@ -28,7 +28,6 @@ import Exercise from '~/screens/app/Workouts/Exercise';
 import LogExercise from '~/screens/app/Workouts/LogExercise';
 
 import Workouts from '~/screens/app/Workouts';
-import Stats from '~/screens/app/Stats';
 import Profile from '~/screens/app/Profile';
 import ChangePassword from '~/screens/app/ChangePassword';
 //import MainLayout from '~/components/Layout/MainLayout';
@@ -55,7 +54,6 @@ export type RootStackParamList = {
   LogExercise: undefined;
   Workouts: undefined;
   Schedule: undefined;
-  Stats: undefined;
   Profile: undefined;
   ChangePassword: undefined;
 };
@@ -150,7 +148,6 @@ export default function Routes() {
               <Stack.Screen name="StartWorkout" component={StartWorkout} />
               <Stack.Screen name="Exercise" component={Exercise} />
               <Stack.Screen name="LogExercise" component={LogExercise} />
-              <Stack.Screen name="Stats" component={Stats} />
               <Stack.Screen name="Profile" component={Profile} />
               <Stack.Screen name="ChangePassword" component={ChangePassword} />
               <Stack.Screen name="ForgotPassword" component={ForgotPassword} />

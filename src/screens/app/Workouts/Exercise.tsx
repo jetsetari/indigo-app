@@ -5,6 +5,7 @@ import IconButton from '~/components/Buttons/IconButton';
 import FullBleed from '~/components/Layout/FullBleed';
 import CustomButton from '~/components/Buttons/CustomButton';
 import { repsForSet } from '~/data/helpers/workoutRun';
+import { hasWorkoutWeight } from '~/data/helpers/workouts';
 import { localTodayISO } from '~/data/helpers/date';
 import { getLogsForItem, type ClientWorkoutLog } from '~/data/supabase/clientWorkoutLogsHandler';
 import { useUserStore } from '~/data/store/userStore';
@@ -66,7 +67,7 @@ export default function Exercise() {
   const notes = item?.notes ?? '';
   const targetToken = repsForSet(item, setIndex);
   const targetReps = formatToken(String(targetToken || '').trim());
-  const showWeight = item?.weight != null;
+  const showWeight = hasWorkoutWeight(item?.weight);
 
   const [isPlaying, setIsPlaying] = useState(false);
   const [hasStarted, setHasStarted] = useState(false);
@@ -149,6 +150,36 @@ export default function Exercise() {
     </View>
   );
 
+  const playingSeconds = !!seconds && (
+    <View
+      pointerEvents="none"
+      style={{
+        flex: 1,
+        justifyContent: 'flex-start',
+        alignItems: 'center',
+        overflow: 'visible',
+        paddingTop: 72,
+      }}
+    >
+      <Text
+        style={{
+          color: '#FFF',
+          fontSize: 96,
+          lineHeight: 128,
+          fontFamily: 'Inter-Bold',
+          textShadowColor: 'rgba(0,0,0,0.75)',
+          textShadowOffset: { width: 0, height: 4 },
+          textShadowRadius: 16,
+          paddingHorizontal: 36,
+          paddingVertical: 28,
+          overflow: 'visible',
+        }}
+      >
+        {displaySeconds}
+      </Text>
+    </View>
+  );
+
   return (
     <FullBleed
       backgroundUri={headerImg}
@@ -156,7 +187,7 @@ export default function Exercise() {
       darkOverlay={!isPlaying}
       Top={<IconButton route={returnTo || 'Home'} icon="close" />}
       Center={
-        !isPlaying && (
+        !isPlaying ? (
           <View style={{ marginBottom: 20, flex: 1 }}>
             <Text style={__base.headline}>{title}</Text>
             {!!description && <Text style={__base.text}>{description}</Text>}
@@ -180,7 +211,7 @@ export default function Exercise() {
               </Pressable>
             )}
           </View>
-        )
+        ) : null
       }
       Bottom={
         !hasStarted || !isPlaying ? (
@@ -214,6 +245,7 @@ export default function Exercise() {
           </View>
         ) : (
           <>
+            {((!!targetReps && !seconds) || showWeight) && (
             <View style={{ flexDirection: 'row', gap: 24 }}>
               {!!targetReps && !seconds && (
                 <View style={{ flex: 1 }}>
@@ -221,7 +253,6 @@ export default function Exercise() {
                   <Text style={__base.textInfo}>{formatToken(String(token))}</Text>
                 </View>
               )}
-              {secondsBlock}
               {showWeight && (
                 <View style={{ flex: 1 }}>
                   <Text style={__base.textLabel}>weight</Text>
@@ -229,6 +260,7 @@ export default function Exercise() {
                 </View>
               )}
             </View>
+            )}
 
             {!!notes && (
               <View>
@@ -269,6 +301,8 @@ export default function Exercise() {
           </Pressable>
         </View>
       )}
+
+      {!!seconds && hasStarted && isPlaying && playingSeconds}
 
       {!!seconds && hasStarted && (
         <TimerBar

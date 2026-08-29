@@ -65,3 +65,10 @@ export function colorForSuperset(label?: string | null) {
   const base = SUPERSET_COLORS[idx % SUPERSET_COLORS.length];
   return { border: base, bg: `${base}50` };
 }
+
+/** Programmed load. 0 / empty / null means bodyweight or no weight — don't show it. */
+export function hasWorkoutWeight(weight: unknown): boolean {
+  if (weight == null || weight === '') return false;
+  const n = Number(weight);
+  return Number.isFinite(n) && n > 0;
+}

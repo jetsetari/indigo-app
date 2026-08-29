@@ -3,7 +3,6 @@ import { useUserStore } from '../store/userStore';
 import useTranslation from '~/data/helpers/translation';
 import { prepareClientRow, fetchClientByEmail } from '~/data/supabase/clientsHandler';
 import { toastError, toastSuccess } from '~/data/helpers/toast';
-import { snakeToCamel } from '../helpers';
 
 const t = useTranslation().login;
 
@@ -158,24 +157,10 @@ export async function signInAndGetNext(email: string, password: string) {
   if (!user?.email) return { next: 'Start' as const };
   const userEmail = user?.email ?? email;
 
-  const { data: clientRow, error: selErr } = await supabase
-  .from('clients')
-  .select(`
-    id, email, first_name, last_name,
-    avatar_url,
-    done_screens,
-    metric_system, desired_weight,
-    created_at
-  `)
-  .eq('email', userEmail)
-  .maybeSingle();
-
-  if (!selErr && clientRow) {
-    const clientCamel = snakeToCamel(clientRow);   // avatar_url -> avatarUrl, done_screens -> doneScreens, ...
-    useUserStore.getState().setClient?.(clientCamel);
-    
-    // Get next route based on done screens
-    const next = nextIntakeRoute(clientRow.done_screens ?? []);
+  const client = await fetchClientByEmail(userEmail).catch(() => null);
+  if (client) {
+    useUserStore.getState().setClient?.(client);
+    const next = nextIntakeRoute((client as any).doneScreens ?? []);
     return { next };
   }
 

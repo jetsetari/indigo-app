@@ -16,6 +16,7 @@ import {
   type ClientWorkoutLog,
 } from '~/data/supabase/clientWorkoutLogsHandler';
 import { findNextIncompleteStep, groupBySupersetNumber, repsForSet, setsCountForItem } from '~/data/helpers/workoutRun';
+import { hasWorkoutWeight } from '~/data/helpers/workouts';
 import { localTodayISO, formatWorkoutDateLabel } from '~/data/helpers/date';
 import { useUserStore } from '~/data/store/userStore';
 import type { WorkoutItem } from '~/data/types';
@@ -44,7 +45,7 @@ const formatLogSummary = (log: ClientWorkoutLog, showWeight: boolean) => {
   const reps = log.reps?.trim() || '—';
   const isTime = /^\d+\s*s$/i.test(reps);
   const repsLabel = isTime ? reps.replace(/\s/g, '') : `${reps} reps`;
-  if (showWeight && log.weight != null) return `${repsLabel} · ${log.weight} kg`;
+  if (showWeight && hasWorkoutWeight(log.weight)) return `${repsLabel} · ${log.weight} kg`;
   return repsLabel;
 };
 
@@ -75,7 +76,7 @@ export default function LogExercise() {
   const displayItem = item;
   const title = (displayItem?.customExerciseName?.trim() || displayItem?.exercise?.name) ?? 'Exercise';
   const cover = displayItem?.exercise?.cover ?? undefined;
-  const showWeight = displayItem?.weight != null;
+  const showWeight = hasWorkoutWeight(displayItem?.weight);
 
   const [reps, setReps] = useState<string>('');
   const [weight, setWeight] = useState<string>('');
@@ -109,7 +110,7 @@ export default function LogExercise() {
       const logs = supersetLogs.get(sib.id) ?? [];
       const last = logs[logs.length - 1];
       if (!last) return label;
-      return `${label} · last ${formatLogSummary(last, sib.weight != null)}`;
+      return `${label} · last ${formatLogSummary(last, hasWorkoutWeight(sib.weight))}`;
     });
     return `Supersetted with ${parts.join(' · ')}`;
   }, [supersetItems, supersetLogs]);
@@ -119,12 +120,12 @@ export default function LogExercise() {
     if (log) {
       const loggedReps = log.reps?.trim() ?? '';
       setReps(loggedReps || target);
-      setWeight(log.weight != null ? String(log.weight) : (forItem.weight != null ? String(forItem.weight) : ''));
+      setWeight(hasWorkoutWeight(log.weight) ? String(log.weight) : (hasWorkoutWeight(forItem.weight) ? String(forItem.weight) : ''));
       setLiked(log.like);
       setNotes(log.notes ?? '');
     } else {
       setReps(target);
-      setWeight(forItem.weight != null ? String(forItem.weight) : '');
+      setWeight(hasWorkoutWeight(forItem.weight) ? String(forItem.weight) : '');
       setLiked(null);
       setNotes('');
     }

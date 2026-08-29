@@ -13,10 +13,11 @@ type Props = {
   title: string;
   subtitle?: string;
   image?: string;
+  hideImage?: boolean;
   children?: ReactNode; // right-side slot
 };
 
-export default function HeaderWithExtra({ back, onBack, title, subtitle = '', image, children }: Props) {
+export default function HeaderWithExtra({ back, onBack, title, subtitle = '', image, hideImage, children }: Props) {
   const hasChildren = Children.count(children) > 0;
   const showBack = !!back || !!onBack;
 
@@ -30,13 +31,13 @@ export default function HeaderWithExtra({ back, onBack, title, subtitle = '', im
             onPress={onBack}
           />
         ) : null}
-        <HeaderText title={title} subtitle={subtitle} />
+        <HeaderText title={title} subtitle={subtitle} style={{ marginBottom: 0, flex: 1 }} />
       </View>
 
       {hasChildren ? (
         // Optional wrapper so the right content doesn’t get squeezed
         <View style={{ flexShrink: 0, marginLeft: 12 }}>{children}</View>
-      ) : (
+      ) : hideImage ? null : (
         <HeaderImage image={image} />
       )}
     </View>

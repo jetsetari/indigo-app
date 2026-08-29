@@ -68,5 +68,5 @@ const s = StyleSheet.create({
   top: { minHeight: 44, justifyContent: 'flex-start' },
   center: { flex: 1, justifyContent: 'flex-end' },
   bottom: { paddingBottom: 16, gap: 12 },
-  overlaySlot: { ...StyleSheet.absoluteFillObject },
+  overlaySlot: { ...StyleSheet.absoluteFillObject, overflow: 'visible' },
 });

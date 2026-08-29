@@ -2,7 +2,7 @@
 import React from 'react';
 import { View, Image } from 'react-native';
 import { styles } from './HeaderImageStyle';
-import { Feather } from '@expo/vector-icons';
+import { LogoMark } from '~/components/Layout/Logo';
 
 type Props = {
   image?: string; // a URI like https://... or file://...
@@ -17,7 +17,7 @@ function HeaderImage({ image }: Props) {
         {uri ? (
           <Image source={{ uri }} style={styles.image} resizeMode="cover" />
         ) : (
-          <Feather name="camera" size={26} color="#FFF" />
+          <LogoMark width={75} />
         )}
       </View>
     </View>

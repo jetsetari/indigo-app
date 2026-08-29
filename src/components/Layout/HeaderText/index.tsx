@@ -1,16 +1,17 @@
 
-import React, { useRef } from 'react';
-import { View, Image, Text } from 'react-native';
+import React from 'react';
+import { View, Text, type StyleProp, type ViewStyle } from 'react-native';
 import { styles } from './HeaderTextStyle';
 
 type Props = {
   title: string;
   subtitle: string;
+  style?: StyleProp<ViewStyle>;
 };
 
-function HeaderText({ title, subtitle }: Props) {
+function HeaderText({ title, subtitle, style }: Props) {
   return (
-    <View style={styles.headerText}>
+    <View style={[styles.headerText, style]}>
       <Text style={styles.h1} numberOfLines={1} ellipsizeMode="tail">
         {title}
       </Text>

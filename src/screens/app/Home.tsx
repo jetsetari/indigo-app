@@ -1,9 +1,8 @@
 // src/screens/home/Home.tsx
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, Alert } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import dayjs from 'dayjs';
-import { Feather } from '@expo/vector-icons';
 
 import StickyHeader from '~/components/Layout/StickyHeader';
 import HeaderWithExtra from '~/components/Layout/HeaderWithExtra';
@@ -11,6 +10,7 @@ import BottomTabs from '~/components/Layout/BottomTabs';
 import FirstItem from '~/components/Layout/FirstItem';
 import Checklist from '~/components/Blocks/Checklist';
 import SupersetsXs from '~/components/Blocks/Supersets/Xs';
+import WorkoutPickCard, { workoutPreviewLine } from '~/components/Blocks/WorkoutPickCard';
 import Loading from '~/components/Loading';
 import { Badge } from '~/components/Layout/Badge';
 
@@ -25,12 +25,11 @@ import {
 } from '~/data/supabase/workoutsHandler';
 import { getLogsForDate, getTotalWorkouts, getWorkoutStreak } from '~/data/supabase/clientWorkoutLogsHandler';
 import { groupBySupersetNumber, setsCountForItem, findNextIncompleteStep } from '~/data/helpers/workoutRun';
-import { localTodayISO } from '~/data/helpers/date';
+import { formatDisplayDateWeekday, localTodayISO } from '~/data/helpers/date';
 
 import __base from '~/assets/styles/base';
 import { styles } from '~/assets/styles/screens/StartStyles';
-import InfoBox from '~/components/Layout/InfoBox';
-import CustomButton from '~/components/Buttons/CustomButton';
+import StartWorkoutButton from '~/components/Buttons/StartWorkoutButton';
 
 export default function Home() {
   const navigation = useNavigation<any>();
@@ -60,7 +59,7 @@ export default function Home() {
       const todayISO = localTodayISO();
       const [day, options] = await Promise.all([
         fetchDayByDate(client.id, todayISO),
-        fetchSelectableWeekWorkouts(client.id, todayISO, 3),
+        fetchSelectableWeekWorkouts(client.id, todayISO, 8),
       ]);
       setTodayDay(day);
       setWeekOptions(options);
@@ -237,63 +236,23 @@ export default function Home() {
   const renderWorkoutCards = (options: SelectableWeekWorkout[]) =>
     options.map((workout) => {
       const title = workout.title?.trim() || `Day ${workout.dayIndex}`;
-      const dayLabel = workoutDayLabel(workout);
+      const dayLabel = workoutDateLabel(workout);
       const isMoving = movingDayId === workout.id;
       const isSkipping = skippingDayId === workout.id;
       const isBusy = movingDayId !== null || skippingDayId !== null;
 
       return (
-        <View
+        <WorkoutPickCard
           key={workout.id}
-          style={[homeStyles.pickCard, (isMoving || isSkipping) && homeStyles.pickCardDisabled]}
-        >
-          <View style={homeStyles.pickCardBody}>
-            <View style={homeStyles.pickCardHeader}>
-              <View style={homeStyles.pickCardLeft}>
-                <Text style={[homeStyles.pickDay, workout.isMissed && homeStyles.missedLabel]}>
-                  {dayLabel}
-                </Text>
-                <Text style={homeStyles.pickTitle}>{title}</Text>
-              </View>
-              {(isMoving || isSkipping) && <ActivityIndicator color="#4DD4AC" />}
-            </View>
-            {workout.previewExercises.length > 0 && (
-              <View style={homeStyles.previewList}>
-                {workout.previewExercises.map((name, index) => (
-                  <Text
-                    key={`${workout.id}-${index}`}
-                    style={[
-                      homeStyles.previewExercise,
-                      { opacity: PREVIEW_OPACITIES[index] ?? 0.08 },
-                    ]}
-                    numberOfLines={1}
-                  >
-                    {name}
-                  </Text>
-                ))}
-              </View>
-            )}
-            <View style={homeStyles.cardActions}>
-              {workout.isMissed && (
-                <TouchableOpacity
-                  style={homeStyles.skipButton}
-                  onPress={() => handleSkipWorkout(workout)}
-                  disabled={isBusy}
-                >
-                  <Text style={homeStyles.skipButtonText}>Skip</Text>
-                </TouchableOpacity>
-              )}
-              <TouchableOpacity
-                style={homeStyles.selectButton}
-                onPress={() => handleSelectWeekWorkout(workout)}
-                disabled={isBusy}
-              >
-                <Text style={homeStyles.selectButtonText}>Select</Text>
-                <Feather name="chevron-right" size={18} color="#000" />
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
+          dateLabel={dayLabel}
+          title={title}
+          preview={workoutPreviewLine(workout.previewExercises, workout.items?.length)}
+          isMissed={workout.isMissed}
+          busy={isMoving || isSkipping}
+          disabled={isBusy}
+          onSelect={() => handleSelectWeekWorkout(workout)}
+          onSkip={workout.isMissed ? () => handleSkipWorkout(workout) : undefined}
+        />
       );
     });
 
@@ -383,63 +342,43 @@ export default function Home() {
     }
   };
 
-  const infoBoxItems = {
-    box1: { icon: 'Weight',   value: '98kg', label: 'Weight' },
-    box2: { icon: 'Birthday', value: '16%',  label: 'Bodyfat' },
-  };
-
   if (loading) return <Loading />;
 
   // Badge data
   const hasStreakBadge = badges.streak >= 3;
   const hasTotalWorkoutsBadge = badges.totalWorkouts >= 10;
-  const missedOptions = weekOptions.filter((workout) => workout.isMissed);
 
   return (
     <>
       <StickyHeader title="Home" noSticky>
         <HeaderWithExtra title={`Welcome, ${displayName} 👋🏼`} subtitle="Let’s Take The Work Out." image={avatarUrl} />
-        <InfoBox box1={infoBoxItems.box1} box2={infoBoxItems.box2} />
-        
-       
-        
+
         <View style={styles.section}>
-          <View style={styles.rowBetween}>
-            <Text style={[__base.textBold]}>Today's Workout{todayDay?.title ? (': ' + todayDay.title) : ''}</Text>
-          </View>
           {todayDay ? (
-            <View style={styles.section}>
-              <View style={{ marginBottom: 8 }}>
-                <CustomButton title={isWorkoutComplete ? "Edit Exercises" : "Start Workout"} backgroundColor="#000" textColor="#4DD4AC" borderColor='#4DD4AC' onPress={handleStartWorkout} />
-              </View>
+            <>
+              <StartWorkoutButton
+                complete={isWorkoutComplete}
+                label={todayDay.title ? `Start ${todayDay.title}` : 'Start'}
+                completeLabel={todayDay.title ? `Edit ${todayDay.title}` : 'Edit'}
+                backgroundColor="#000"
+                textColor="#FFF"
+                borderColor="#FFF"
+                fullWidth
+                onPress={handleStartWorkout}
+              />
               <SupersetsXs items={todayDay.items ?? []} selectedDate={localTodayISO()} />
-            </View>
+            </>
           ) : weekOptions.length > 0 ? (
             <View style={homeStyles.pickSection}>
-              <Text style={homeStyles.pickHint}>
-                {missedOptions.length > 0
-                  ? 'You have uncompleted workouts, would you like to complete them now?'
-                  : 'No workout scheduled for today. Pick one from this week to train now.'}
+              <Text style={[__base.textBold, { marginBottom: 4 }]}>
+                {weekOptions.some((workout) => workout.isMissed) ? 'Missed workouts' : "Today's Workout"}
               </Text>
               {renderWorkoutCards(weekOptions)}
-              <TouchableOpacity
-                onPress={() => navigation.navigate('Schedule', { returnTo: 'Home' })}
-                style={homeStyles.manageLink}
-              >
-                <Text style={homeStyles.manageLinkText}>Manage schedule in Workouts</Text>
-              </TouchableOpacity>
             </View>
           ) : upcomingOptions.length > 0 ? (
             <View style={homeStyles.pickSection}>
-              <Text style={homeStyles.pickHint}>All workouts of the week done.</Text>
-              <Text style={homeStyles.upcomingHeading}>Upcoming workouts</Text>
+              <Text style={[__base.textBold, { marginBottom: 4 }]}>Upcoming workouts</Text>
               {renderWorkoutCards(upcomingOptions)}
-              <TouchableOpacity
-                onPress={() => navigation.navigate('Schedule', { returnTo: 'Home' })}
-                style={homeStyles.manageLink}
-              >
-                <Text style={homeStyles.manageLinkText}>Manage schedule in Workouts</Text>
-              </TouchableOpacity>
             </View>
           ) : (
             <FirstItem
@@ -486,8 +425,9 @@ export default function Home() {
             </View>
           )}
 
-
-          <Checklist />
+          <View style={{ marginTop: 20 }}>
+            <Checklist />
+          </View>
         </View>
       </StickyHeader>
       <BottomTabs />
@@ -495,20 +435,13 @@ export default function Home() {
   );
 }
 
-const PREVIEW_OPACITIES = [0.55, 0.35, 0.2, 0.1];
-
 function workoutDateLabel(workout: SelectableWeekWorkout): string {
   if (!workout.date) return `Day ${workout.dayIndex}`;
 
   const date = dayjs(workout.date);
   const today = dayjs();
   const weekEnd = today.subtract((today.day() + 6) % 7, 'day').add(6, 'day');
-  return date.isAfter(weekEnd, 'day') ? date.format('ddd, D MMM') : date.format('dddd');
-}
-
-function workoutDayLabel(workout: SelectableWeekWorkout): string {
-  const label = workoutDateLabel(workout);
-  return workout.isMissed ? `Missed · ${label}` : label;
+  return date.isAfter(weekEnd, 'day') ? formatDisplayDateWeekday(workout.date) : date.format('dddd');
 }
 
 const homeStyles = StyleSheet.create({
@@ -516,94 +449,5 @@ const homeStyles = StyleSheet.create({
     marginTop: 8,
     marginBottom: 10,
     gap: 8,
-  },
-  pickHint: {
-    color: '#AAA',
-    fontSize: 14,
-    marginBottom: 4,
-  },
-  upcomingHeading: {
-    color: '#FFF',
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  pickCard: {
-    backgroundColor: '#111',
-    borderColor: '#333',
-    borderWidth: 1,
-    padding: 12,
-  },
-  pickCardDisabled: {
-    opacity: 0.6,
-  },
-  pickCardBody: {
-    gap: 8,
-  },
-  pickCardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  pickCardLeft: {
-    flex: 1,
-  },
-  pickDay: {
-    color: '#999',
-    fontSize: 13,
-    marginBottom: 2,
-  },
-  missedLabel: {
-    color: '#FFB067',
-  },
-  pickTitle: {
-    color: '#FFF',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  previewList: {
-    gap: 2,
-    paddingRight: 28,
-  },
-  previewExercise: {
-    color: '#FFF',
-    fontSize: 13,
-  },
-  cardActions: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: 8,
-    marginTop: 4,
-  },
-  skipButton: {
-    borderColor: '#555',
-    borderWidth: 1,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-  },
-  skipButtonText: {
-    color: '#CCC',
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  selectButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 2,
-    backgroundColor: '#4DD4AC',
-    paddingLeft: 16,
-    paddingRight: 10,
-    paddingVertical: 8,
-  },
-  selectButtonText: {
-    color: '#000',
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  manageLink: {
-    paddingVertical: 8,
-    alignItems: 'center',
-  },
-  manageLinkText: {
-    color: '#4DD4AC',
-    fontSize: 13,
   },
 });

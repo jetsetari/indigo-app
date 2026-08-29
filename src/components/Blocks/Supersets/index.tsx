@@ -94,8 +94,8 @@ export default function Supersets({ items, selectedDate }: Props) {
         const title = groupNum > 0 ? `Superset ${groupNum}` : 'Exercises';
 
         return (
-          <View key={`g-${groupNum}`} style={{ gap: 5, marginBottom: 0 }}>
-            <Text style={__base.textBold}>{title}</Text>
+          <View key={`g-${groupNum}`} style={{ gap: 2, marginBottom: 0 }}>
+            <Text style={[__base.textBold, { color: border, marginBottom: 0 }]}>{title}</Text>
             <View style={{ borderColor: border, backgroundColor: bg, borderWidth: 1, padding: 5, gap: 5 }}>
               {list.map((it) => {
                 // Use custom_exercise_name if available, otherwise fall back to exercise.name
@@ -103,7 +103,6 @@ export default function Supersets({ items, selectedDate }: Props) {
                 const tSubtitle = it.reps ?? '';
                 const tLabel = it.supersetLabel ?? '';
                 const cover = it.exercise?.cover;
-                const { border: itemBorder, bg: itemBg } = colorForSuperset(it.supersetLabel);
                 
                 // Check if this exercise is done (all sets logged)
                 const totalSets = setsCountForItem(items, it.id);
@@ -118,8 +117,8 @@ export default function Supersets({ items, selectedDate }: Props) {
                     title={tTitle}
                     subtitle={tSubtitle}
                     label={tLabel}
-                    borderColor={itemBorder}
-                    backgroundColor={itemBg}
+                    borderColor="#888"
+                    backgroundColor="#000"
                     onPress={() => handleItemPress(it)}
                     showCheck
                     done={done}

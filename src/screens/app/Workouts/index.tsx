@@ -2,13 +2,14 @@
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useState, useEffect, useCallback } from 'react';
 import dayjs from 'dayjs';
-import { View, Dimensions, Text } from 'react-native';
+import { View, Dimensions } from 'react-native';
 import StickyHeader from '~/components/Layout/StickyHeader';
 import WhiteRefreshControl from '~/components/Layout/WhiteRefreshControl';
 import __base from '~/assets/styles/base';
 import BottomTabs from '~/components/Layout/BottomTabs';
 import SelectWeek from '~/components/Blocks/SelectWeek';
 import HeaderText from '~/components/Layout/HeaderText';
+import { formatWeekRange } from '~/data/helpers/date';
 import { useUserStore } from '~/data/store/userStore';
 
 import { fetchDayByDate } from '~/data/supabase/workoutsHandler';
@@ -16,8 +17,9 @@ import { getLogsForDate } from '~/data/supabase/clientWorkoutLogsHandler';
 import { groupBySupersetNumber, setsCountForItem, findNextIncompleteStep } from '~/data/helpers/workoutRun';
 import { useMemo } from 'react';
 import FirstItem from '~/components/Layout/FirstItem';
-import Supersets from '~/components/Blocks/Supersets';
-import CustomButton from '~/components/Buttons/CustomButton';
+import SupersetsXs from '~/components/Blocks/Supersets/Xs';
+import StartWorkoutButton from '~/components/Buttons/StartWorkoutButton';
+import Checklist from '~/components/Blocks/Checklist';
 import { buildWeekStatus } from '~/data/helpers/weekStatus';
 import Loading from '~/components/Loading';
 
@@ -222,7 +224,7 @@ export default function Workouts() {
         }
       >
         <View style={[__base.paddingHorizontal, { paddingBottom: 0, paddingTop: 70 }]}>
-          <HeaderText title={`Your workout week at a glance`} subtitle={'From ' + dayjs(weekStart).format('DD-MM') + ' to ' + dayjs(weekStart).add(6, 'day').format('DD-MM')}/>
+          <HeaderText title={`Your workout week at a glance`} subtitle={formatWeekRange(weekStart)}/>
         </View>
         <View style={{  }}>
           <SelectWeek
@@ -238,35 +240,41 @@ export default function Workouts() {
           />
         </View>
         <View style={[__base.paddingHorizontal, { paddingBottom: 100, paddingTop: 30 }]}>
-          {selectedDay?.title && (
-            <Text style={[__base.textBold, { fontSize: 18, marginBottom: 10, textTransform: 'uppercase' }]}>
-              {selectedDay.title}
-            </Text>
-          )}
           {(loadingDay || loadingWeek) ? (
             <View style={{ alignItems: 'center', justifyContent: 'center', flex: 1, height: height-400, opacity: 0.2 }}>
               <Loading />
             </View>
-          ) : selectedDay ? (
-            <>
-              <Supersets items={selectedDay.items ?? []} selectedDate={selectedDate} />
-              <CustomButton
-                title={isWorkoutComplete ? "Log Exercises" : "Start Workout"}
-                backgroundColor="#000"
-                textColor="#4DD4AC"
-                borderColor="#4DD4AC"
-                onPress={handleStartWorkout}
-              />
-            </>
           ) : (
-            <FirstItem
-              title="Today's Workout"
-              icon="Barbell"
-              description="Select your workout for this day"
-              onClick={() => navigation.navigate('ScheduleWorkout', {
-                isoDate: selectedDate,
-              })}
-            />
+            <>
+              {selectedDay ? (
+                <>
+                  <StartWorkoutButton
+                    complete={isWorkoutComplete}
+                    label={selectedDay.title ? `Start ${selectedDay.title}` : 'Start'}
+                    completeLabel={selectedDay.title ? `Edit ${selectedDay.title}` : 'Edit'}
+                    backgroundColor="#000"
+                    textColor="#FFF"
+                    borderColor="#FFF"
+                    fullWidth
+                    style={{ marginBottom: 24 }}
+                    onPress={handleStartWorkout}
+                  />
+                  <SupersetsXs items={selectedDay.items ?? []} selectedDate={selectedDate} returnTo="Schedule" />
+                </>
+              ) : (
+                <FirstItem
+                  title="Today's Workout"
+                  icon="Barbell"
+                  description="Select your workout for this day"
+                  onClick={() => navigation.navigate('ScheduleWorkout', {
+                    isoDate: selectedDate,
+                  })}
+                />
+              )}
+              <View style={{ marginTop: selectedDay ? 24 : 8 }}>
+                <Checklist date={selectedDate} />
+              </View>
+            </>
           )}
         </View>
       </StickyHeader>

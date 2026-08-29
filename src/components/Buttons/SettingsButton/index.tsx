@@ -13,18 +13,29 @@ type Props = {
   icon: React.ComponentProps<typeof Feather>['name'];
   title: string;
   onPress?: () => void;
+  tone?: 'default' | 'danger';
 };
 
 export default function SettingsButton({
   icon,
   title,
   onPress,
+  tone = 'default',
 }: Props) {
+  const danger = tone === 'danger';
   return (
-    <TouchableOpacity style={styles.card} onPress={onPress}>
+    <TouchableOpacity
+      style={[styles.card, danger && styles.cardDanger]}
+      onPress={onPress}
+    >
       <View style={styles.left}>
-        <Feather name={icon} size={20} color="#FFF" style={styles.icon} />
-        <Text style={styles.title}>{title}</Text>
+        <Feather
+          name={icon}
+          size={20}
+          color={danger ? '#E8A0A0' : '#FFF'}
+          style={styles.icon}
+        />
+        <Text style={[styles.title, danger && styles.titleDanger]}>{title}</Text>
       </View>
     </TouchableOpacity>
   );
@@ -42,6 +53,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     marginBottom: 5,
   },
+  cardDanger: {
+    backgroundColor: '#1C1212',
+    borderColor: '#5C3333',
+  },
   left: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -52,5 +67,8 @@ const styles = StyleSheet.create({
   title: {
     color: '#FFF',
     fontSize: 14,
+  },
+  titleDanger: {
+    color: '#E8A0A0',
   },
 });

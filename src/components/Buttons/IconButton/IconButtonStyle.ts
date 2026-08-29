@@ -14,4 +14,8 @@ export const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  squareClose: {
+    borderWidth: 1,
+    borderColor: '#FFF',
+  },
 });

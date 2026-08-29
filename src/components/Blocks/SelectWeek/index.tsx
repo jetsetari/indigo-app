@@ -109,12 +109,12 @@ export default function SelectWeek({
                 ]}>
                   {d.dowShort}
                 </Text>
+                <View style={s.dotSlot}>
+                  {status !== 'none' && (
+                    <View style={[s.dot, status === 'done' ? s.dotGreen : s.dotGrey]} />
+                  )}
+                </View>
               </View>
-
-              {/* dots */}
-              {status !== 'none' && (
-                <View style={[s.dot, status === 'done' ? s.dotGreen : s.dotGrey]} />
-              )}
             </Pressable>
           );
         })}
@@ -136,8 +136,8 @@ const s = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 8, backgroundColor: '#FFF', paddingVertical: 10 },
   navBtn: { width: 20, height: 55, borderWidth: 2, borderColor: '#000', borderRadius: 0, alignItems: 'center', justifyContent: 'center' },
   days: { flex: 1, flexDirection: 'row', justifyContent: 'space-between' },
-  dayWrap: { alignItems: 'center', gap: 6, minWidth: 38 },
-  dateBox: { alignItems: 'center', justifyContent: 'center', paddingVertical: 10, paddingHorizontal: 10 },
+  dayWrap: { alignItems: 'center', minWidth: 38 },
+  dateBox: { alignItems: 'center', justifyContent: 'center', paddingTop: 10, paddingBottom: 6, paddingHorizontal: 10 },
   dateBoxSelected: { backgroundColor: '#000' },
   dateBoxToday: { borderWidth: 2, borderColor: '#4DD4AC', borderRadius: 0 },
   dateText: { fontSize: 16, fontFamily: 'Inter-SemiBold', color: '#000' },
@@ -146,7 +146,8 @@ const s = StyleSheet.create({
   dowText: { marginTop: 2, fontSize: 11, color: '#9ca3af', fontFamily: 'Inter-Regular' },
   dowTextToday: { color: '#4DD4AC', fontWeight: '600' },
   dowPreferred: { color: '#000', borderBottomWidth: 1 },
-  dot: { width: 6, height: 6, borderRadius: 5, marginTop: 6, position: 'absolute', bottom: 25, left: 6 },
+  dotSlot: { height: 6, width: '100%', alignItems: 'center', justifyContent: 'center', marginTop: 3 },
+  dot: { width: 6, height: 6, borderRadius: 3 },
   dotGreen: { backgroundColor: '#22c55e' },
   dotGrey: { backgroundColor: '#9ca3af' },
 });

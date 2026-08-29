@@ -7,6 +7,7 @@ export const styles = StyleSheet.create({
     marginBottom: 30, justifyContent: 'space-between'
   },
   headerWithExtraWrapper: {
-    flex: 1, minWidth: 0, marginRight: 12, gap: 10
+    flex: 1, minWidth: 0, marginRight: 12, gap: 12,
+    flexDirection: 'row', alignItems: 'center',
   }
 });

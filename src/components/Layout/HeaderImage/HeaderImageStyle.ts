@@ -10,6 +10,7 @@ export const styles = StyleSheet.create({
   imageBox: {
     width: '100%', height: '100%', backgroundColor: '#222', 
     justifyContent: 'center', alignItems: 'center',
+    overflow: 'hidden',
 
   },
   image: {

@@ -19,6 +19,21 @@ export const getWeightPickerConfig = (metricSystem: 'kg/cm' | 'lbs/inches', t: a
   return { min: 90, max: 400, unit: t.weight.unitLbs };
 }
 
+/** Local calendar date as YYYY-MM-DD (avoids UTC shift from toISOString). */
+export function toDateOnly(value: Date | string | null | undefined): string | null {
+  if (value instanceof Date) {
+    if (Number.isNaN(value.getTime())) return null;
+    const y = value.getFullYear();
+    const m = String(value.getMonth() + 1).padStart(2, '0');
+    const d = String(value.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}/.test(value)) {
+    return value.slice(0, 10);
+  }
+  return null;
+}
+
 export const camelToSnakeKey = (k: string) =>
   k.replace(/([a-z0-9])([A-Z])/g, "$1_$2").replace(/-/g, "_").toLowerCase();
 

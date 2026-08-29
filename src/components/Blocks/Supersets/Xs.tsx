@@ -13,9 +13,11 @@ import __base from '~/assets/styles/base';
 type Props = { 
   items: WorkoutItem[];
   selectedDate?: string; // ISO date string
+  interactive?: boolean;
+  returnTo?: 'Home' | 'Schedule';
 };
 
-export default function SupersetsXs({ items, selectedDate }: Props) {
+export default function SupersetsXs({ items, selectedDate, interactive = true, returnTo = 'Home' }: Props) {
   const navigation = useNavigation<any>();
   const client = useUserStore((s) => s.client);
   const [logsCountByItem, setLogsCountByItem] = useState<Map<number, number>>(new Map());
@@ -70,7 +72,7 @@ export default function SupersetsXs({ items, selectedDate }: Props) {
         itemsAll,
         idxAll,
         mode: 'history',
-        returnTo: 'Home',
+        returnTo,
         date: selectedDate,
       });
     } else {
@@ -80,7 +82,7 @@ export default function SupersetsXs({ items, selectedDate }: Props) {
         supersetNum,
         itemsAll,
         idxAll,
-        returnTo: 'Home',
+        returnTo,
       });
     }
   };
@@ -99,37 +101,43 @@ export default function SupersetsXs({ items, selectedDate }: Props) {
                 const tSubtitle = it.reps ?? '';
                 const tLabel = it.supersetLabel ?? '';
                 const cover = it.exercise?.cover;
-                const { border: itemBorder, bg: itemBg } = colorForSuperset(it.supersetLabel);
+                const { border: itemBorder } = colorForSuperset(it.supersetLabel);
                 
                 // Check if this exercise is done (all sets logged)
                 const totalSets = setsCountForItem(items, it.id);
                 const loggedSets = logsCountByItem.get(it.id) ?? 0;
                 const done = loggedSets >= totalSets;
                 
+                const row = (
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <ExerciseItemXs
+                      cover={cover}
+                      title={tTitle}
+                      subtitle={tSubtitle}
+                      label={tLabel}
+                      borderColor="#888"
+                      backgroundColor="#000"
+                      loggedSets={loggedSets}
+                      totalSets={totalSets}
+                      progressColor={itemBorder}
+                    />
+                    {done && (
+                      <View style={{ marginLeft: 8, backgroundColor: itemBorder, borderRadius: 12, width: 24, height: 24, justifyContent: 'center', alignItems: 'center' }}>
+                        <Feather name="check" size={16} color="#FFF" />
+                      </View>
+                    )}
+                  </View>
+                );
+
+                if (!interactive) return <View key={it.id}>{row}</View>;
+
                 return (
                   <TouchableOpacity
                     key={it.id}
                     onPress={() => handleItemPress(it)}
                     activeOpacity={0.7}
                   >
-                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                      <ExerciseItemXs
-                        cover={cover}
-                        title={tTitle}
-                        subtitle={tSubtitle}
-                        label={tLabel}
-                        borderColor={itemBorder}
-                        backgroundColor={itemBg}
-                        loggedSets={loggedSets}
-                        totalSets={totalSets}
-                        progressColor={itemBorder}
-                      />
-                      {done && (
-                        <View style={{ marginLeft: 8, backgroundColor: itemBorder, borderRadius: 12, width: 24, height: 24, justifyContent: 'center', alignItems: 'center' }}>
-                          <Feather name="check" size={16} color="#FFF" />
-                        </View>
-                      )}
-                    </View>
+                    {row}
                   </TouchableOpacity>
                 );
               })}

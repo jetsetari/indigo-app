@@ -25,6 +25,6 @@ export const styles = StyleSheet.create({
     backgroundColor: '#a11919', borderColor: '#FFF', borderWidth: 1
   },
   caption: { 
-    marginTop: 6, color: '#BDBDBD', fontSize: 12, fontFamily: 'Inter-Medium', textAlign: 'center' 
+    marginTop: 10, color: '#BDBDBD', fontSize: 13, fontFamily: 'Inter-Medium', textAlign: 'center' 
   },
 });

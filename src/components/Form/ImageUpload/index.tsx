@@ -13,6 +13,7 @@ import { styles } from './ImageUploadStyle';
 
 type Variant = 'button' | 'avatar' | 'square';
 import { runImageValidators, type ImageRule } from '../validation';
+import { LogoMark } from '~/components/Layout/Logo';
 
 export type FormImageUploadProps<T extends FieldValues = FieldValues> = {
   control: unknown;                 // RHF Control<any>
@@ -29,6 +30,7 @@ export type FormImageUploadProps<T extends FieldValues = FieldValues> = {
   style?: any;                      // wrapper style
   showRemove?: boolean;             // show small remove button when has image
   source?: 'both' | 'camera' | 'library'; // how to pick image
+  placeholder?: 'camera' | 'logo';
 };
 
 export default function FormImageUpload<T extends FieldValues = FieldValues>({
@@ -45,6 +47,7 @@ export default function FormImageUpload<T extends FieldValues = FieldValues>({
   style,
   showRemove = true,
   source = 'both',
+  placeholder = 'camera',
 }: FormImageUploadProps<T>) {
   const [uploading, setUploading] = useState(false);
 
@@ -186,8 +189,10 @@ export default function FormImageUpload<T extends FieldValues = FieldValues>({
                 <ActivityIndicator />
               ) : value ? (
                 <Image source={{ uri: value as string }} style={[StyleSheet.absoluteFill, shapeStyle]} />
+              ) : placeholder === 'logo' ? (
+                <LogoMark width={size} />
               ) : (
-                <Feather name="camera" size={22} color="#888" />
+                <Feather name="camera" size={Math.max(22, Math.round(size * 0.28))} color="#888" />
               )}
             </Pressable>
 

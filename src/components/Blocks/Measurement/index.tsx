@@ -11,7 +11,7 @@ import __base from '~/assets/styles/base';
 import { getMeasurementByDate } from '~/data/supabase/clientsHandler';
 import Loading from '~/components/Loading';
 
-type Props = { dateISO: string };
+type Props = { dateISO: string; onSaved?: () => void };
 
 type Values = {
   weight?: string | number | null;
@@ -22,7 +22,7 @@ type Values = {
 };
 const API_BASE = 'https://indigo-backend-j5pl.onrender.com';
 
-export default function MeasurementsInline({ dateISO }: Props) {
+export default function MeasurementsInline({ dateISO, onSaved }: Props) {
   const clientId = useUserStore((s) => s.client?.id);
   const metricSystem = useUserStore((s) => s.client?.metricSystem);
   const { control, handleSubmit, setValue, getValues } = useForm<Values>({
@@ -99,13 +99,14 @@ export default function MeasurementsInline({ dateISO }: Props) {
       });
       setType('manual');
       toastSuccess('Saved', 'Measurements added for this date.');
+      onSaved?.();
     } catch (e: any) {
       toastError('Save failed', e?.message ?? 'Try again.');
     }
   });
   if(loading) return <Loading text={loading} />
   return (
-    <View style={{ gap: 12, marginTop: 16, marginBottom: 10 }}>
+    <View style={{ gap: 12, marginTop: 8, paddingBottom: 24 }}>
       <Text style={__base.textBold}>Measurements</Text>
 
       <View style={{ flexDirection: 'row', gap: 12 }}>
@@ -117,17 +118,17 @@ export default function MeasurementsInline({ dateISO }: Props) {
       <Text style={[__base.text, { color: '#AAA', fontSize: 13 }]}>
         Add all three photos, then run AI estimation to fill bodyfat.
       </Text>
-      <CustomButton title="Calculate with AI" backgroundColor="#FFF" textColor="#000" onPress={onCalculateAI} />
+      <CustomButton title="Calculate with AI" backgroundColor="#000" textColor="#FFF" borderColor="#FFF" onPress={onCalculateAI} />
 
-      <View style={[__base.rowGap, { flex: 1 }]}>
-        <View style={{ flex: 1, minWidth: 0, paddingRight: 10 }}>
+      <View style={{ flexDirection: 'row', gap: 12 }}>
+        <View style={{ flex: 1, minWidth: 0 }}>
           <FormInput control={control} name="weight"  label="Weight"   placeholder={weightUnit(metricSystem)} type="number" />
         </View>
         <View style={{ flex: 1, minWidth: 0 }}>
           <FormInput control={control} name="bodyfat" label="Bodyfat"  placeholder="%"  type="number" />
         </View>
       </View>
-      <CustomButton title="Save" backgroundColor="#000" textColor="#FFF" onPress={onSave} />
+      <CustomButton title="Save" backgroundColor="#FFF" textColor="#000" borderColor="#FFF" onPress={onSave} />
     </View>
   );
 }

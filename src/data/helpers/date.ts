@@ -1,4 +1,12 @@
 // ~/data/helpers/date.ts
+import dayjs from 'dayjs';
+
+function toDayjs(isoOrDate: string | Date) {
+  if (typeof isoOrDate === 'string' && /^\d{4}-\d{2}-\d{2}/.test(isoOrDate)) {
+    return dayjs(`${isoOrDate.slice(0, 10)}T12:00:00`);
+  }
+  return dayjs(isoOrDate);
+}
 
 // Returns an array of 7 Date objects starting from the Monday of the given date's week
 export const getWeekDates = (date: Date): Date[] => {
@@ -16,7 +24,7 @@ export const getWeekDates = (date: Date): Date[] => {
 
 // Returns 2-letter day label, e.g. "Mo", "Tu"
 export const formatDayLabel = (date: Date): string => {
-  return date.toLocaleDateString('en-GB', { weekday: 'short' }).slice(0, 2);
+  return date.toLocaleDateString('en-US', { weekday: 'short' }).slice(0, 2);
 };
 
 // Returns short date (e.g. "01" for 1st)
@@ -32,16 +40,47 @@ export function localTodayISO(d: Date = new Date()): string {
   return `${y}-${m}-${day}`;
 }
 
-/** Display a YYYY-MM-DD (or Date) as e.g. "Thu, 20 Aug". */
+/** Oct 31, 2026 */
+export function formatDisplayDate(isoOrDate: string | Date): string {
+  const d = toDayjs(isoOrDate);
+  return d.isValid() ? d.format('MMM D, YYYY') : String(isoOrDate);
+}
+
+/** Saturday, Oct 31, 2026 */
+export function formatDisplayDateLong(isoOrDate: string | Date): string {
+  const d = toDayjs(isoOrDate);
+  return d.isValid() ? d.format('dddd, MMM D, YYYY') : String(isoOrDate);
+}
+
+/** Sat, Oct 31 */
+export function formatDisplayDateWeekday(isoOrDate: string | Date): string {
+  const d = toDayjs(isoOrDate);
+  return d.isValid() ? d.format('ddd, MMM D') : String(isoOrDate);
+}
+
+/** Oct 31 */
+export function formatMonthDay(isoOrDate: string | Date): string {
+  const d = toDayjs(isoOrDate);
+  return d.isValid() ? d.format('MMM D') : String(isoOrDate);
+}
+
+/** Oct 27 – Nov 2, 2026 */
+export function formatWeekRange(startISO: string, endISO?: string): string {
+  const start = toDayjs(startISO);
+  const end = endISO ? toDayjs(endISO) : start.add(6, 'day');
+  if (!start.isValid() || !end.isValid()) return '';
+  if (start.year() === end.year()) {
+    if (start.month() === end.month()) {
+      return `${start.format('MMM D')} – ${end.format('D, YYYY')}`;
+    }
+    return `${start.format('MMM D')} – ${end.format('MMM D, YYYY')}`;
+  }
+  return `${start.format('MMM D, YYYY')} – ${end.format('MMM D, YYYY')}`;
+}
+
+/** Sat, Oct 31, 2026 */
 export function formatWorkoutDateLabel(isoOrDate: string | Date): string {
-  const d =
-    typeof isoOrDate === 'string'
-      ? new Date(`${isoOrDate}T12:00:00`)
-      : isoOrDate;
-  if (Number.isNaN(d.getTime())) return String(isoOrDate);
-  return d.toLocaleDateString('en-GB', {
-    weekday: 'short',
-    day: 'numeric',
-    month: 'short',
-  });
+  const d = toDayjs(isoOrDate);
+  if (!d.isValid()) return String(isoOrDate);
+  return d.format('ddd, MMM D, YYYY');
 }

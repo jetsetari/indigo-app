@@ -26,6 +26,7 @@ type Props = {
   refreshControl?: React.ReactElement;
   /** When true, shows a clear white spinner overlay (use with refreshControl). */
   refreshing?: boolean;
+  scrollEnabled?: boolean;
 };
 
 export default function StickyHeader({
@@ -37,6 +38,7 @@ export default function StickyHeader({
   noSticky = false,
   refreshControl,
   refreshing = false,
+  scrollEnabled = true,
 }: Props) {
   const scrollY = useRef(new Animated.Value(0)).current;
   const [darkBar, setDarkBar] = useState(false);
@@ -74,6 +76,7 @@ export default function StickyHeader({
     refreshControl,
     bounces: true,
     alwaysBounceVertical: true,
+    scrollEnabled,
     onScrollBeginDrag: Keyboard.dismiss,
     scrollEventThrottle: 16 as const,
   };

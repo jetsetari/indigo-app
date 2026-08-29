@@ -5,7 +5,7 @@ export const styles = StyleSheet.create({
   infoBox: {
     flexDirection: 'row', justifyContent: 'center', alignItems: 'center', 
     backgroundColor: '#111', borderRadius: 0,
-    marginBottom: 20, padding: 15, 
+    marginBottom: 20, padding: 15, gap: 8,
   },
   infoBoxColumn: {
     alignItems: 'center', flex: 1, justifyContent: 'flex-start',
@@ -25,5 +25,15 @@ export const styles = StyleSheet.create({
   infoBoxLabel: {
     color: '#EEE', fontSize: 12, 
     fontFamily: 'Inter-Regular',
+  },
+  logBtn: {
+    width: 30,
+    height: 30,
+    backgroundColor: '#000',
+    borderWidth: 1,
+    borderColor: '#FFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 4,
   },
 });

@@ -42,7 +42,7 @@ const i18n = {
         maxDate: 'Date cannot be in the future',
       },
       avatar: {
-        label: 'Avatar'
+        label: 'Tap to add a profile picture'
       },
       login: {
         title: 'Login Details',

@@ -1,6 +1,7 @@
 import CustomIcon from '../CustomIcon';
-import React, { useRef } from 'react';
-import { View, Image, Text } from 'react-native';
+import React from 'react';
+import { View, Text, TouchableOpacity } from 'react-native';
+import { Feather } from '@expo/vector-icons';
 import { styles } from './InfoBoxStyle';
 
 type IconName = React.ComponentProps<typeof CustomIcon>['icon'];
@@ -13,9 +14,10 @@ type InfoBoxItem = {
 type Props = {
   box1: InfoBoxItem;
   box2: InfoBoxItem;
+  onLogPress?: () => void;
 };
 
-function InfoBox({ box1, box2 }: Props) {
+function InfoBox({ box1, box2, onLogPress }: Props) {
   return (
     <View style={styles.infoBox}>
       <View style={styles.infoBoxColumn}>
@@ -36,6 +38,11 @@ function InfoBox({ box1, box2 }: Props) {
           <Text style={styles.infoBoxLabel}>{box2.label}</Text>
         </View>
       </View>
+      {onLogPress ? (
+        <TouchableOpacity onPress={onLogPress} activeOpacity={0.8} style={styles.logBtn} hitSlop={8}>
+          <Feather name="file-text" size={16} color="#FFF" />
+        </TouchableOpacity>
+      ) : null}
     </View>
   );
 }

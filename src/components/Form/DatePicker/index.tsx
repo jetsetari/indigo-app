@@ -5,6 +5,7 @@ import { Controller, type FieldValues, type Path } from 'react-hook-form';
 import { Feather } from '@expo/vector-icons';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 
+import { formatDisplayDate } from '~/data/helpers/date';
 import { runDateValidators, type DateRule } from '../validation';
 import { styles } from './DatePickerStyle';
 import __base from '~/assets/styles/base';
@@ -55,7 +56,7 @@ export default function FormDatePicker<T extends FieldValues = FieldValues>({
   const isIOS = Platform.OS === 'ios';
 
   const format = (d?: Date | null) =>
-    d ? (displayFormat ? displayFormat(d) : d.toLocaleDateString()) : (placeholder || label);
+    d ? (displayFormat ? displayFormat(d) : formatDisplayDate(d)) : (placeholder || label);
 
   const open = () => (isIOS ? setIosOpen(true) : setFocused((f) => !f));
   const close = () => (isIOS ? setIosOpen(false) : setFocused(false));
@@ -122,7 +123,13 @@ export default function FormDatePicker<T extends FieldValues = FieldValues>({
                       minimumDate={minimumDate}
                       maximumDate={maximumDate}
                     />
-                    <TouchableOpacity style={styles.modalClose} onPress={close}>
+                    <TouchableOpacity
+                      style={styles.modalClose}
+                      onPress={() => {
+                        if (!hasDateValue(value)) onChange(pickerValue);
+                        close();
+                      }}
+                    >
                       <Text style={styles.modalCloseText}>Done</Text>
                     </TouchableOpacity>
                   </View>

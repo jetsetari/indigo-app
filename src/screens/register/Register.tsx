@@ -63,9 +63,19 @@ export default function Register() {
   return (
     <>
       <StickyHeader title={t.screenTitle}>
-        <HeaderWithExtra back="Start" title={t.title} subtitle={t.subtitle}>
-          <FormImageUpload control={control} name="avatarUrl" filepath="clients" variant="square" size={75} source="both" label={t.avatar.label} />
-        </HeaderWithExtra>
+        <HeaderWithExtra back="Start" title={t.title} subtitle={t.subtitle} hideImage />
+        <View style={{ alignItems: 'center', marginBottom: 28 }}>
+          <FormImageUpload
+            control={control}
+            name="avatarUrl"
+            filepath="clients"
+            variant="square"
+            size={140}
+            source="both"
+            placeholder="logo"
+            label={t.avatar.label}
+          />
+        </View>
         <FormInput control={control} name="firstName" label={t.firstName.label} placeholder={t.firstName.placeholder} required rules={validateRegister.firstName}/>
         <FormInput control={control} name="lastName"  label={t.lastName.label}  placeholder={t.lastName.placeholder}  required rules={validateRegister.lastName}/>
         <FormDatePicker control={control} name="dob"   label={t.dob.label}      required rules={validateRegister.dob} />

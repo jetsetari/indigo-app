@@ -6,6 +6,7 @@ import { Feather } from '@expo/vector-icons';
 
 import { styles } from './WeekCalendarStyle';
 import __base from '~/assets/styles/base';
+import { formatWeekRange } from '~/data/helpers/date';
 import { runDateValidators, type DateRule } from '../validation';
 
 type WeekItem = {
@@ -112,7 +113,7 @@ export default function FormWeekCalendar<T extends FieldValues = FieldValues>({
                 <Feather name="chevron-left" size={24} />
               </TouchableOpacity>
               <Text style={styles.weekLabel}>
-                {dayjs(week[0].date).format('MMM D')} - {dayjs(week[6].date).format('MMM D')}
+                {formatWeekRange(week[0].date, week[6].date)}
               </Text>
               <TouchableOpacity onPress={right}>
                 <Feather name="chevron-right" size={24} />

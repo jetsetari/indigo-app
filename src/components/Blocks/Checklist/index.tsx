@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity } from 'react-native';
 import { useUserStore } from '~/data/store/userStore';
 import { fetchChecklistItems, fetchChecklistState, toggleChecklistCell, type ChecklistItem } from '~/data/supabase/checklistHandler';
 import { toastError } from '~/data/helpers/toast';
+import { formatMonthDay, localTodayISO } from '~/data/helpers/date';
 import { styles } from './ChecklistStyle';
 
 type Props = {
@@ -11,16 +12,12 @@ type Props = {
 };
 
 function toIso(d?: Date | string): string {
-  if (!d) return new Date().toISOString().slice(0, 10);
+  if (!d) return localTodayISO();
   if (typeof d === 'string') return d.slice(0, 10);
-  return d.toISOString().slice(0, 10);
+  return localTodayISO(d);
 }
 function isToday(iso: string): boolean {
-  return iso === new Date().toISOString().slice(0, 10);
-}
-function ddmm(iso: string): string {
-  const [y, m, d] = iso.split('-');
-  return `${d}-${m}`;
+  return iso === localTodayISO();
 }
 
 export default function Checklist({ date }: Props) {
@@ -75,7 +72,7 @@ export default function Checklist({ date }: Props) {
     }
   };
 
-  const title = isToday(isoDate) ? "Today's checklist" : `Checklist ${ddmm(isoDate)}`;
+  const title = isToday(isoDate) ? "Today's checklist" : `Checklist ${formatMonthDay(isoDate)}`;
 
   if (!clientId) return null;
   if (loading) {
