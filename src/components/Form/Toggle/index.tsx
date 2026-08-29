@@ -14,10 +14,11 @@ export type FormToggleProps<T extends FieldValues = FieldValues> = {
   label?: string;
   required?: boolean;             // visual only (asterisk); use rules for validation
   rules?: any;                    // RHF rules, e.g. { required: 'Pick one' }
+  onValueChange?: (value: string, previous?: string) => void;
 };
 
 export default function FormToggle<T extends FieldValues>({
-  control, name, options, label, required, rules,
+  control, name, options, label, required, rules, onValueChange,
 }: FormToggleProps<T>) {
   // normalize options to {label,value}
   const opts = React.useMemo(
@@ -47,7 +48,11 @@ export default function FormToggle<T extends FieldValues>({
                 <TouchableOpacity
                   key={o.value}
                   style={[styles.option, selected && styles.selectedOption]}
-                  onPress={() => onChange(o.value)}
+                  onPress={() => {
+                    const previous = value;
+                    onChange(o.value);
+                    onValueChange?.(o.value, previous);
+                  }}
                 >
                   <Text style={[styles.optionText, selected && styles.selectedText]}>
                     {o.label}
